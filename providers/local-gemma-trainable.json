@@ -1,0 +1,7 @@
+{
+  "provider_id": "local-gemma-trainable",
+  "name": "Local trainable Gemma checkpoint (no API)",
+  "client_kind": "google",
+  "base_url": null,
+  "api_key_env": "LOCAL_GEMMA_API_KEY"
+}

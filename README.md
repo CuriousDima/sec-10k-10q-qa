@@ -1,0 +1,3 @@
+# SEC 10-K/10-Q QA
+
+This project configures a SIA-FinCheck question-answering task for building and evaluating agents that answer finance questions from SEC company filings, especially Forms 10-K and 10-Q: a 10-K is a public company’s comprehensive annual report with audited financial statements, business risks, management discussion, and operating results, while a 10-Q is the unaudited quarterly update that keeps investors current between annual reports; these filings are important because they are standardized, legally required disclosures that provide the primary source of truth for understanding a company’s financial condition, performance, risks, and trajectory.

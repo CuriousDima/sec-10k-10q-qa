@@ -1,0 +1,23 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+torchaudio==2.11.0+cu128
+transformers==5.10.2
+accelerate==1.13.0
+peft==0.19.1
+trl==1.5.1
+datasets==5.0.0
+bitsandbytes==0.49.2
+sentencepiece==0.2.1
+protobuf==5.29.6
+scipy
+scikit-learn
+pandas
+numpy
+evaluate==0.4.6
+einops==0.8.2
+safetensors==0.7.0
+tensorboard==2.20.0
+wandb==0.27.2
+liger-kernel==0.8.0
+openai

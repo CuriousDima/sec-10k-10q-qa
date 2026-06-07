@@ -1,0 +1,37 @@
+# Python cache / bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+coverage.xml
+htmlcov/
+
+# Build / packaging artifacts
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+**/venv/
+
+# Environment variable files
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Generated experiment/run outputs may contain logs or secrets
+runs/
+*.log

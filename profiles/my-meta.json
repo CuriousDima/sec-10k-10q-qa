@@ -1,0 +1,7 @@
+{
+  "profile_id": "my-meta",
+  "name": "Sakana Fugu Ultra meta agent",
+  "agent_impl": "openhands",
+  "model": "fugu-ultra",
+  "provider_id": "sakana"
+}

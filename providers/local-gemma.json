@@ -1,0 +1,7 @@
+{
+  "provider_id": "local-gemma",
+  "name": "Local self-hosted Gemma",
+  "client_kind": "openai",
+  "base_url": "http://localhost:8000/v1",
+  "api_key_env": "LOCAL_GEMMA_API_KEY"
+}

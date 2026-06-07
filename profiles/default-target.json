@@ -1,0 +1,7 @@
+{
+  "profile_id": "default-target",
+  "name": "Default target agent (Sakana Fugu Mini)",
+  "model": "fugu-mini",
+  "provider_id": "sakana",
+  "agent_reference": "default"
+}

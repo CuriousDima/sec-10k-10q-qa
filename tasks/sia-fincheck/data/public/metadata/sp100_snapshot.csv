@@ -1,0 +1,102 @@
+source_name,retrieval_timestamp,ticker,normalized_ticker,company_name,sector
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AAPL,AAPL,Apple Inc.,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ABBV,ABBV,AbbVie,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ABT,ABT,Abbott Laboratories,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ACN,ACN,Accenture,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ADBE,ADBE,Adobe Inc.,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AMAT,AMAT,Applied Materials,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AMD,AMD,Advanced Micro Devices,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AMGN,AMGN,Amgen,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AMT,AMT,American Tower,Real Estate
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AMZN,AMZN,Amazon,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AVGO,AVGO,Broadcom,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,AXP,AXP,American Express,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BA,BA,Boeing,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BAC,BAC,Bank of America,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BKNG,BKNG,Booking Holdings,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BLK,BLK,BlackRock,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BMY,BMY,Bristol Myers Squibb,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BNY,BNY,BNY Mellon,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,BRK.B,BRK-B,Berkshire Hathaway (Class B),Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,C,C,Citigroup,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CAT,CAT,Caterpillar Inc.,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CL,CL,Colgate-Palmolive,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CMCSA,CMCSA,Comcast,Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,COF,COF,Capital One,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,COP,COP,ConocoPhillips,Energy
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,COST,COST,Costco,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CRM,CRM,Salesforce,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CSCO,CSCO,Cisco,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CVS,CVS,CVS Health,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,CVX,CVX,Chevron Corporation,Energy
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,DE,DE,Deere & Company,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,DHR,DHR,Danaher Corporation,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,DIS,DIS,Walt Disney Company (The),Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,DUK,DUK,Duke Energy,Utilities
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,EMR,EMR,Emerson Electric,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,FDX,FDX,FedEx,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GD,GD,General Dynamics,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GE,GE,GE Aerospace,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GEV,GEV,GE Vernova,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GILD,GILD,Gilead Sciences,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GM,GM,General Motors,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GOOG,GOOG,Alphabet Inc. (Class C),Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GOOGL,GOOGL,Alphabet Inc. (Class A),Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,GS,GS,Goldman Sachs,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,HD,HD,Home Depot,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,HON,HON,Honeywell,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,IBM,IBM,IBM,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,INTC,INTC,Intel,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,INTU,INTU,Intuit,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ISRG,ISRG,Intuitive Surgical,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,JNJ,JNJ,Johnson & Johnson,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,JPM,JPM,JPMorgan Chase,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,KO,KO,Coca-Cola Company (The),Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,LIN,LIN,Linde plc,Materials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,LLY,LLY,Eli Lilly and Company,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,LMT,LMT,Lockheed Martin,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,LOW,LOW,Lowe's,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,LRCX,LRCX,Lam Research,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MA,MA,Mastercard,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MCD,MCD,McDonald's,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MDLZ,MDLZ,Mondelēz International,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MDT,MDT,Medtronic,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,META,META,Meta Platforms,Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MMM,MMM,3M,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MO,MO,Altria,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MRK,MRK,Merck & Co.,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MS,MS,Morgan Stanley,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MSFT,MSFT,Microsoft,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,MU,MU,Micron Technology,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,NEE,NEE,NextEra Energy,Utilities
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,NFLX,NFLX,"Netflix, Inc.",Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,NKE,NKE,"Nike, Inc.",Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,NOW,NOW,ServiceNow,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,NVDA,NVDA,Nvidia,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,ORCL,ORCL,Oracle Corporation,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,PEP,PEP,PepsiCo,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,PFE,PFE,Pfizer,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,PG,PG,Procter & Gamble,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,PLTR,PLTR,Palantir Technologies,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,PM,PM,Philip Morris International,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,QCOM,QCOM,Qualcomm,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,RTX,RTX,RTX Corporation,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,SBUX,SBUX,Starbucks,Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,SCHW,SCHW,Charles Schwab Corporation,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,SO,SO,Southern Company,Utilities
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,SPG,SPG,Simon Property Group,Real Estate
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,T,T,AT&T,Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,TMO,TMO,Thermo Fisher Scientific,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,TMUS,TMUS,T-Mobile US,Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,TSLA,TSLA,"Tesla, Inc.",Consumer Discretionary
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,TXN,TXN,Texas Instruments,Information Technology
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,UBER,UBER,Uber,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,UNH,UNH,UnitedHealth Group,Health Care
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,UNP,UNP,Union Pacific Corporation,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,UPS,UPS,United Parcel Service,Industrials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,USB,USB,U.S. Bancorp,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,V,V,Visa Inc.,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,VZ,VZ,Verizon,Communication Services
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,WFC,WFC,Wells Fargo,Financials
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,WMT,WMT,Walmart,Consumer Staples
+Wikipedia S&P 100,2026-06-06T20:30:44+00:00,XOM,XOM,ExxonMobil,Energy

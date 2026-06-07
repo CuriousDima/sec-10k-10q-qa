@@ -1,0 +1,10 @@
+{
+  "profile_id": "gemma-fake-rl-target",
+  "name": "Gemma local fake-RL-as-harness target",
+  "model": "/workspace/gemma_checkpoints/gemma-4-31B-it",
+  "provider_id": "local-gemma-trainable",
+  "agent_reference": {
+    "source": "../agent-references/gemma-fake-rl-agent/",
+    "entrypoint": "target_agent.py"
+  }
+}

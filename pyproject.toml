@@ -1,0 +1,9 @@
+[project]
+name = "sec-10k-10q-qa"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "sia-agent[openhands]>=0.5.1",
+]
