@@ -1,0 +1,13 @@
+{
+  "n_predictions": 150,
+  "model_path": "/workspace/gemma_checkpoints/gemma-4-31B-it",
+  "llm_available": true,
+  "llm_load_error": null,
+  "submission_path": "/workspace/sec-10k-10q-qa/runs/run_6/gen_1/submission.jsonl",
+  "dataset_dir": "/workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public",
+  "working_dir": "/workspace/sec-10k-10q-qa/runs/run_6/gen_1",
+  "source_counts": {
+    "fallback_placeholder": 50,
+    "heuristic": 100
+  }
+}

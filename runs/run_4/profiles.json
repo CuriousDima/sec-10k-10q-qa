@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "profile_id": "default-meta",
+    "name": "Default meta agent (Sakana Fugu Ultra via OpenHands)",
+    "agent_impl": "openhands",
+    "model": "fugu-ultra",
+    "provider": {
+      "provider_id": "sakana",
+      "name": "Sakana AI",
+      "client_kind": "openai",
+      "base_url": "https://api.sakana.ai/v1",
+      "api_key_env": "SAKANA_API_KEY"
+    }
+  },
+  "target": {
+    "profile_id": "default-target",
+    "name": "Default target agent (Sakana Fugu Mini)",
+    "model": "fugu-mini",
+    "provider": {
+      "provider_id": "sakana",
+      "name": "Sakana AI",
+      "client_kind": "openai",
+      "base_url": "https://api.sakana.ai/v1",
+      "api_key_env": "SAKANA_API_KEY"
+    },
+    "agent_reference": {
+      "kind": "default",
+      "source": null,
+      "entrypoint": null
+    }
+  }
+}

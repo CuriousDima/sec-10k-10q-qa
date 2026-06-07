@@ -1,0 +1,224 @@
+You are a meta-agent. Your task is to create a target agent which can execute a task. Go ahead and create a target_agent.py for the target agent, which in turn can solve the given task.
+
+Here is the FULL TASK SPECIFICATION that your target_agent.py will need to solve:
+# SIA-FinCheck Task
+
+Answer numerical questions about recent SEC 10-K and 10-Q filing excerpts for current S&P 100 companies.
+
+## Files available to the target agent
+
+The target agent receives `--dataset_dir` pointing at this `data/public/` directory. It may read:
+
+- `train.jsonl` — 1,200 public training examples, labels hidden.
+- `validation.jsonl` — 150 public validation examples, labels hidden.
+- `test.jsonl` — 150 public test examples to answer for SIA evaluation.
+- `sample_submission.jsonl` — example JSONL output format.
+- `metadata/` — public dataset metadata.
+
+Private labels are not available to the target agent. They are used only by `evaluate.py`.
+
+## Public example schema
+
+Each public JSONL record includes filing metadata, a question, an expected answer unit, and filing-derived context. Private labels are intentionally omitted.
+
+Important fields include:
+
+- `id`
+- `ticker`
+- `company_name`
+- `form` (`10-K` or `10-Q`)
+- `filing_date`
+- `report_date`
+- `fiscal_year`
+- `fiscal_period`
+- `question`
+- `answer_type` (`currency`, `ratio`, `percent`, or `USD/share`)
+- `expected_unit`
+- `context`
+
+## Required output
+
+For SIA evaluation, answer every row in `test.jsonl` and write predictions to:
+
+```text
+<working_dir>/submission.jsonl
+```
+
+The target agent receives `--working_dir` as a writable output directory.
+
+Write one JSON object per line, in the same order as `test.jsonl` if possible:
+
+```json
+{"id":"AAPL_2024_10K_revenue_0001","answer":391035000000,"unit":"USD","confidence":0.82,"reasoning":"The filing reports net sales; I normalized to raw USD."}
+```
+
+Required fields:
+
+- `id`
+- `answer`
+- `unit`
+
+Optional fields:
+
+- `confidence`
+- `reasoning`
+
+## Units and normalization
+
+Use raw numeric answers unless the question clearly asks for a ratio, percent, or per-share value.
+
+- Currency labels are raw USD values. If a filing says `$391,035 million`, output `391035000000` with unit `USD`.
+- Percent labels are percentage points. If the answer is 12.5%, output `12.5` with unit `percent`.
+- Per-share answers should use unit `USD/share` or `USD_per_share`.
+- Ratios should use unit `ratio`.
+
+The evaluator is tolerant of common numeric formatting such as commas, `$`, parentheses for negatives, `%`, and million/billion scale words, but best practice is to output clean numeric values.
+
+## Scoring
+
+The evaluator uses a weighted score per item:
+
+- 80% numeric correctness within tolerance
+- 10% unit correctness
+- 5% valid required output fields
+- 5% derived-answer sanity checks
+
+The main metric is `overall_score` / `accuracy` in `results.json`.
+
+## Constraints
+
+- Use the filing context as the evidence source.
+- Do not try to read private labels or any paths outside `--dataset_dir` and `--working_dir`.
+- Do not modify files in `--dataset_dir`.
+- Save execution logs in `agent_execution/` or `agent_execution.json` as required by SIA.
+
+
+Here are a couple of sample task descriptions which the target agent has to solve:
+# Sample Related Task Descriptions
+
+## Task 1: Numerical QA over SEC filings
+
+Given public excerpts from 10-K and 10-Q filings, answer a list of numerical finance questions. Each question may ask for a directly reported number such as revenue, assets, liabilities, cash flow, EPS, or gross profit, or a simple derived value such as a ratio or percentage. The output must be JSONL with one answer per input ID.
+
+-----
+
+## Task 2: Financial table extraction and normalization
+
+Read company filing text containing financial statements and footnotes. Extract the requested numeric value, normalize it to the required unit, and return a concise machine-readable answer. Currency answers should be raw USD; percentages should be percentage points; per-share values should use USD/share.
+
+-----
+
+## Task 3: Multi-record benchmark inference
+
+Process many independent benchmark examples. For each example, use only its supplied filing context and metadata, avoid private labels, produce an answer with a unit, and save all predictions to `submission.jsonl` in the writable working directory.
+
+
+Your reference agent implementation has been placed in your working directory (/workspace/sec-10k-10q-qa/runs/run_6/gen_1). It may span multiple files. READ IT YOURSELF with your file tools (Read/Glob/Grep) — study the entrypoint and any helper modules — then write your target_agent.py in the same directory.
+If your target_agent.py needs third-party packages, list them (one per line) in a requirements.txt in your working directory; they are installed before the target agent runs.
+
+Here is a sample agent execution trajectory:
+[
+  {
+    "role": "system",
+    "content": [
+      {
+        "type": "text",
+        "text": "You are a helpful financial assistant that can look up stock prices and provide market information."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "What is the stock price of AAPL?"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll look up the current market data for Apple (AAPL) right now."
+      }
+    ],
+    "tool_calls": [
+      {
+        "id": "call_98765",
+        "type": "function",
+        "function": {
+          "name": "get_ticker_price",
+          "arguments": "{\"symbol\": \"AAPL\"}"
+        }
+      }
+    ]
+  },
+  {
+    "role": "tool",
+    "tool_call_id": "call_98765",
+    "content": "{\"price\": 185.20, \"currency\": \"USD\"}"
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "Apple (AAPL) is currently trading at $185.20 USD."
+      }
+    ]
+  }
+]
+
+CRITICAL RULES - FOLLOW EXACTLY:
+
+1. The current working directory is /workspace/sec-10k-10q-qa/runs/run_6/gen_1. Create the target_agent.py in the current working directory itself.
+
+2. The target_agent.py MUST accept two command-line arguments:
+   - --dataset_dir: Absolute path to the dataset directory (READ-ONLY, provided at runtime)
+   - --working_dir: Absolute path to the working directory (READ-WRITE, provided at runtime)
+
+3. CRITICAL: The target_agent.py must INCLUDE these paths in the prompt it sends to /workspace/gemma_checkpoints/gemma-4-31B-it. /workspace/gemma_checkpoints/gemma-4-31B-it MUST be explicitly told:
+   - Where the dataset directory is located (the exact path from --dataset_dir)
+   - Where the working directory is located (the exact path from --working_dir)
+   - That it can ONLY READ from the dataset directory
+   - That it can READ from and WRITE to the working directory
+
+   DO NOT let /workspace/gemma_checkpoints/gemma-4-31B-it search for data in random locations. The prompt must say: "The dataset is at: <actual_dataset_dir_path>"
+
+4. The target agent can ONLY read from the dataset directory provided via --dataset_dir, and can ONLY write to the working directory specified by --working_dir. It must NOT access any other directories on the filesystem.
+
+5. EXECUTION LOGGING - CRITICAL:
+
+   The target_agent.py must log its execution trajectory properly. The format depends on the task type:
+
+   **FOR TASKS WITH MULTIPLE INDEPENDENT SAMPLES** (e.g., GPQA with 198 questions, multiple test cases):
+   - Create a folder: agent_execution/ in the working directory
+   - Save each sample separately: execution_q0.json, execution_q1.json, execution_q2.json, etc.
+   - Each file contains the complete trajectory for that ONE sample only
+   - Files must be named sequentially: execution_q0.json, execution_q1.json, ...
+
+   **FOR TASKS WITH SINGLE EXECUTION** (e.g., building one ML model, analyzing one dataset):
+   - Save to a single file: agent_execution.json in the working directory
+   - File contains the complete execution trajectory
+
+   **HOW TO DETERMINE WHICH FORMAT**:
+   - Read the task description carefully
+   - If it mentions "independent items", "dataset with multiple records to process separately"
+     → Use multi-trajectory (folder with multiple files)
+   - If it's about "build a model", "analyze the dataset", "create one solution", "optimize one system"
+     → Use single-trajectory (one JSON file)
+
+   **FORMAT REQUIREMENTS** (both formats):
+   - Use the same format as the sample agent execution trajectory provided above
+   - Include all messages, tool calls, and their results
+   - Ensure valid JSON (properly close all arrays/objects)
+   - Make sure to properly close the JSON file(s) to avoid corruption
+
+6. Do NOT attempt to write to or modify files inside the dataset directory. It is READ-ONLY.
+7. The target_agent.py should use only the "/workspace/gemma_checkpoints/gemma-4-31B-it" model when invoking the language model (do not use any other model).
+8. DO NOT hardcode any specific dataset paths in the target_agent.py code. The paths will be provided at runtime via command-line arguments and MUST be passed to /workspace/gemma_checkpoints/gemma-4-31B-it in the prompt.
+
+Example invocation (paths will vary at runtime):
+    python target_agent.py --dataset_dir /path/to/dataset --working_dir /path/to/working

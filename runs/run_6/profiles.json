@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "profile_id": "my-meta",
+    "name": "Sakana Fugu Ultra meta agent",
+    "agent_impl": "openhands",
+    "model": "fugu-ultra",
+    "provider": {
+      "provider_id": "sakana",
+      "name": "Sakana AI",
+      "client_kind": "openai",
+      "base_url": "https://api.sakana.ai/v1",
+      "api_key_env": "SAKANA_API_KEY"
+    }
+  },
+  "target": {
+    "profile_id": "gemma-fake-rl-target",
+    "name": "Gemma local fake-RL-as-harness target",
+    "model": "/workspace/gemma_checkpoints/gemma-4-31B-it",
+    "provider": {
+      "provider_id": "local-gemma-trainable",
+      "name": "Local trainable Gemma checkpoint (no API)",
+      "client_kind": "google",
+      "base_url": null,
+      "api_key_env": "LOCAL_GEMMA_API_KEY"
+    },
+    "agent_reference": {
+      "kind": "dir",
+      "source": "/workspace/sec-10k-10q-qa/agent-references/gemma-fake-rl-agent",
+      "entrypoint": "target_agent.py"
+    }
+  }
+}

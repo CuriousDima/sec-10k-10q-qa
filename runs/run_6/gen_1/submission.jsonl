@@ -1,0 +1,150 @@
+{"id": "WMT_2026-01-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2024-06-30_10Q_revenue_0001", "answer": 15770000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:total revenue@scale=1e+06"}
+{"id": "IBM_2025-03-31_10Q_diluted_eps_0004", "answer": 1.0, "unit": "USD_per_share", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "AAPL_2024-12-28_10Q_operating_income_0003", "answer": 42832000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:operating_income:operating income@scale=1e+06"}
+{"id": "CVX_2024-06-30_10Q_liabilities_0005", "answer": 100381000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "TXN_2025-06-30_10Q_liabilities_to_assets_0012", "answer": 0.5304439927861907, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.853e+10/3.4933e+10 (table:liabilities:total liabilities@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "TXN_2025-09-30_10Q_liabilities_0007", "answer": 18377000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "TMO_2024-12-31_10K_diluted_eps_0002", "answer": 1.0, "unit": "USD_per_share", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GS_2026-03-31_10Q_equity_0005", "answer": 122782000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total shareholders' equity@scale=1e+06"}
+{"id": "INTC_2026-03-28_10Q_net_income_0002", "answer": -4281000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "NFLX_2025-12-31_10K_operating_margin_0006", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2024-06-29_10Q_revenue_0001", "answer": 12833000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:net revenue@scale=1e+06"}
+{"id": "MO_2024-09-30_10Q_operating_margin_0010", "answer": 50.35948234542259, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*3.152e+09/6.259e+09 (table:operating_income:operating income@scale=1e+06 / table:revenue:net revenues@scale=1e+06)"}
+{"id": "LLY_2024-09-30_10Q_cash_0006", "answer": 3369000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:cash:cash and cash equivalents@scale=1e+06"}
+{"id": "AAPL_2024-06-29_10Q_cash_0009", "answer": 25565000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:cash:cash and cash equivalents@scale=1e+06"}
+{"id": "AAPL_2025-12-27_10Q_assets_0006", "answer": 379297000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "TXN_2025-09-30_10Q_net_income_0002", "answer": 1364000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "GM_2024-12-31_10K_liabilities_to_assets_0008", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2025-03-31_10Q_net_margin_0009", "answer": 7.255346950003439, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*1.055e+09/1.4541e+10 (table:net_income:net income@scale=1e+06 / table:revenue:total revenue@scale=1e+06)"}
+{"id": "AAPL_2024-06-29_10Q_equity_0008", "answer": 66708000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total shareholders' equity@scale=1e+06"}
+{"id": "WMT_2025-01-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "TXN_2025-06-30_10Q_net_income_0002", "answer": 1295000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "WMT_2026-01-31_10K_diluted_eps_0003", "answer": 1.0, "unit": "USD_per_share", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GD_2025-03-30_10Q_equity_0004", "answer": 22225000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total shareholders' equity@scale=1e+06"}
+{"id": "NFLX_2025-12-31_10K_operating_income_0003", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2025-09-30_10Q_net_margin_0008", "answer": 10.67907660277999, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*1.744e+09/1.6331e+10 (table:net_income:net income/(loss)@scale=1e+06 / table:revenue:total revenue@scale=1e+06)"}
+{"id": "CVX_2025-09-30_10Q_diluted_eps_0003", "answer": 1.82, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted"}
+{"id": "AAPL_2024-12-28_10Q_gross_profit_0004", "answer": 58275000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:gross_profit:gross margin@scale=1e+06"}
+{"id": "CVX_2025-03-31_10Q_liabilities_0005", "answer": 106317000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "TXN_2025-09-30_10Q_assets_0006", "answer": 35004000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "EMR_2025-12-31_10Q_diluted_eps_0003", "answer": 1.02, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted"}
+{"id": "NFLX_2025-12-31_10K_equity_ratio_0008", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "NFLX_2025-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2024-09-28_10Q_equity_0007", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "LLY_2025-03-31_10Q_net_margin_0007", "answer": 21.67812389519582, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*2.7593e+09/1.27285e+10 (table:net_income:net income@scale=1e+06 / table:revenue:revenue@scale=1e+06)"}
+{"id": "IBM_2026-03-31_10Q_equity_ratio_0011", "answer": 0.21158683727092922, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 3.3056e+10/1.56229e+11 (table:stockholders_equity:total equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "GM_2024-12-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "TXN_2025-09-30_10Q_liabilities_to_assets_0012", "answer": 0.5249971431836361, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.8377e+10/3.5004e+10 (table:liabilities:total liabilities@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "IBM_2025-06-30_10Q_net_income_0002", "answer": 2194000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "TMO_2025-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "CVX_2025-03-31_10Q_cash_0007", "answer": 4638000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:cash:cash and cash equivalents@scale=1e+06"}
+{"id": "GD_2026-04-05_10Q_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "EMR_2024-06-30_10Q_revenue_0001", "answer": 4380000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:net sales@scale=1e+06"}
+{"id": "WMT_2026-01-31_10K_operating_margin_0006", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GM_2025-12-31_10K_liabilities_to_assets_0008", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "WMT_2025-01-31_10K_diluted_eps_0003", "answer": 1.0, "unit": "USD_per_share", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "NFLX_2025-12-31_10K_net_margin_0007", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "PFE_2025-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "WMT_2025-01-31_10K_operating_income_0002", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2024-06-29_10Q_operating_income_0003", "answer": -1964000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:operating_income:operating income@scale=1e+06"}
+{"id": "MO_2025-09-30_10Q_revenue_0001", "answer": 6072000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:net revenues@scale=1e+06"}
+{"id": "EMR_2025-03-31_10Q_assets_0004", "answer": 44246000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "AAPL_2025-12-27_10Q_operating_margin_0010", "answer": 35.373827875010434, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*5.0852e+10/1.43756e+11 (table:operating_income:operating income@scale=1e+06 / table:revenue:total net sales@scale=1e+06)"}
+{"id": "AAPL_2024-06-29_10Q_assets_0006", "answer": 331612000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "EMR_2025-06-30_10Q_net_income_0002", "answer": 586000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net earnings@scale=1e+06"}
+{"id": "NFLX_2024-12-31_10K_equity_ratio_0008", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "TXN_2026-03-31_10Q_equity_0008", "answer": 16778000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total stockholders' equity@scale=1e+06"}
+{"id": "TMO_2025-12-31_10K_equity_0003", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2025-06-30_10Q_equity_ratio_0011", "answer": 0.18567150116095166, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 2.7588e+10/1.48585e+11 (table:stockholders_equity:total equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "TXN_2026-03-31_10Q_equity_ratio_0013", "answer": 0.4878318262437124, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.6778e+10/3.4393e+10 (table:stockholders_equity:total stockholders' equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "INTC_2026-03-28_10Q_net_margin_0010", "answer": -31.531266111806733, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*-4.281e+09/1.3577e+10 (table:net_income:net income@scale=1e+06 / table:revenue:net revenue@scale=1e+06)"}
+{"id": "MO_2025-03-31_10Q_gross_profit_0004", "answer": 3249000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:gross_profit:gross profit@scale=1e+06"}
+{"id": "CVX_2024-09-30_10Q_liabilities_0005", "answer": 102202000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "GM_2024-12-31_10K_equity_ratio_0009", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GM_2025-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "MO_2025-03-31_10Q_net_margin_0011", "answer": 20.479178551055334, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*1.077e+09/5.259e+09 (table:net_income:net earnings@scale=1e+06 / table:revenue:net revenues@scale=1e+06)"}
+{"id": "NFLX_2024-12-31_10K_net_margin_0007", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "AAPL_2026-03-28_10Q_revenue_0001", "answer": 111184000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:total net sales@scale=1e+06"}
+{"id": "WMT_2025-01-31_10K_revenue_0001", "answer": 681000000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via prose:revenue:total revenues of $681.0 billion"}
+{"id": "MO_2024-09-30_10Q_assets_0006", "answer": 34167000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "GS_2025-09-30_10Q_liabilities_0004", "answer": 1683580000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "GM_2025-12-31_10K_operating_income_0002", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2025-06-30_10Q_net_margin_0009", "answer": 12.923366908169877, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*2.194e+09/1.6977e+10 (table:net_income:net income@scale=1e+06 / table:revenue:total revenue@scale=1e+06)"}
+{"id": "AAPL_2025-12-27_10Q_net_income_0002", "answer": 42097000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "AAPL_2025-06-28_10Q_diluted_eps_0005", "answer": 1.57, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted"}
+{"id": "WMT_2025-01-31_10K_operating_margin_0006", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GM_2025-12-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "CVX_2024-09-30_10Q_equity_ratio_0010", "answer": 0.6057508332304654, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.5703e+11/2.59232e+11 (table:stockholders_equity:total equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "GM_2024-12-31_10K_operating_margin_0007", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GS_2025-06-30_10Q_net_income_0001", "answer": 3723000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net earnings@scale=1e+06"}
+{"id": "PFE_2024-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "AAPL_2024-12-28_10Q_liabilities_to_assets_0012", "answer": 0.80598398651496, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 2.77327e+11/3.44085e+11 (table:liabilities:total liabilities@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "AAPL_2025-06-28_10Q_equity_ratio_0013", "answer": 0.19858519736345948, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 6.583e+10/3.31495e+11 (table:stockholders_equity:total shareholders' equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "LLY_2026-03-31_10Q_net_income_0002", "answer": 7396000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "INTC_2025-03-29_10Q_operating_income_0003", "answer": -301000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:operating_income:operating income@scale=1e+06"}
+{"id": "IBM_2025-03-31_10Q_assets_0005", "answer": 145667000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "TXN_2025-03-31_10Q_equity_ratio_0013", "answer": 0.48600290310157895, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.6406e+10/3.3757e+10 (table:stockholders_equity:total stockholders' equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "IBM_2025-03-31_10Q_equity_0007", "answer": 26953000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total equity@scale=1e+06"}
+{"id": "NFLX_2024-12-31_10K_net_income_0002", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "CVX_2024-06-30_10Q_assets_0004", "answer": 260644000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "BNY_2025-06-30_10Q_equity_0005", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "BNY_2024-06-30_10Q_liabilities_to_assets_0006", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "LLY_2025-09-30_10Q_diluted_eps_0003", "answer": 6.21, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted"}
+{"id": "GS_2026-03-31_10Q_net_income_0001", "answer": 5630000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net earnings@scale=1e+06"}
+{"id": "GS_2026-03-31_10Q_liabilities_to_assets_0007", "answer": 0.9404022949451019, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.9374e+12/2.06018e+12 (table:liabilities:total liabilities@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "WMT_2025-01-31_10K_equity_ratio_0007", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "BNY_2025-03-31_10Q_net_income_0001", "answer": 1149000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "GM_2025-12-31_10K_equity_ratio_0009", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "NFLX_2024-12-31_10K_operating_margin_0006", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GM_2024-12-31_10K_revenue_0001", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2024-06-29_10Q_gross_profit_0004", "answer": 4547000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:gross_profit:gross margin@scale=1e+06"}
+{"id": "NFLX_2024-12-31_10K_operating_income_0003", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "NFLX_2024-12-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "AAPL_2025-12-27_10Q_operating_income_0003", "answer": 50852000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:operating_income:operating income@scale=1e+06"}
+{"id": "CVX_2026-03-31_10Q_equity_0006", "answer": 189371000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total equity@scale=1e+06"}
+{"id": "INTC_2024-09-28_10Q_equity_ratio_0010", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2025-09-27_10Q_gross_profit_0004", "answer": 5218000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:gross_profit:gross profit@scale=1e+06"}
+{"id": "IBM_2026-03-31_10Q_cash_0008", "answer": 10819000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:cash:cash and cash equivalents@scale=1e+06"}
+{"id": "GD_2024-09-29_10Q_equity_0004", "answer": 22973000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total shareholders' equity@scale=1e+06"}
+{"id": "MO_2025-06-30_10Q_liabilities_0007", "answer": 35538000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "BNY_2026-03-31_10Q_diluted_eps_0002", "answer": 2.24, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted earnings per share"}
+{"id": "AAPL_2024-12-28_10Q_diluted_eps_0005", "answer": 2.4, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted"}
+{"id": "INTC_2025-03-29_10Q_operating_margin_0009", "answer": -2.3762532564932504, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*-3.01e+08/1.2667e+10 (table:operating_income:operating income@scale=1e+06 / table:revenue:net revenue@scale=1e+06)"}
+{"id": "CVX_2025-09-30_10Q_equity_0006", "answer": 195600000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total equity@scale=1e+06"}
+{"id": "EMR_2024-06-30_10Q_equity_0005", "answer": 26688000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:stockholders_equity:total equity@scale=1e+06"}
+{"id": "PFE_2024-12-31_10K_equity_0003", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "CVX_2026-03-31_10Q_assets_0004", "answer": 329551000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "GM_2025-12-31_10K_operating_margin_0007", "answer": 10.0, "unit": "percent", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "INTC_2024-06-29_10Q_net_income_0002", "answer": -1654000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "WMT_2026-01-31_10K_operating_income_0002", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "AAPL_2025-06-28_10Q_liabilities_to_assets_0012", "answer": 0.8014148026365405, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 2.65665e+11/3.31495e+11 (table:liabilities:total liabilities@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "AAPL_2024-12-28_10Q_revenue_0001", "answer": 124300000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:total net sales@scale=1e+06"}
+{"id": "LLY_2025-06-30_10Q_assets_0004", "answer": 100922600000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "GD_2026-04-05_10Q_equity_ratio_0006", "answer": 0.44179979332192654, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 2.6079e+10/5.9029e+10 (table:stockholders_equity:total shareholders' equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "SO_2024-12-31_10K_equity_0003", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "IBM_2024-09-30_10Q_net_income_0002", "answer": -330000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income/(loss)@scale=1e+06"}
+{"id": "NFLX_2025-12-31_10K_assets_0004", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "CVX_2024-09-30_10Q_assets_0004", "answer": 259232000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "PG_2024-06-30_10K_equity_ratio_0005", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "WMT_2026-01-31_10K_equity_ratio_0007", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "GD_2025-06-29_10Q_assets_0003", "answer": 56888000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "AAPL_2026-03-28_10Q_operating_income_0003", "answer": 35885000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:operating_income:operating income@scale=1e+06"}
+{"id": "IBM_2025-09-30_10Q_liabilities_0005", "answer": 118322000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "AAPL_2025-03-29_10Q_liabilities_0007", "answer": 264437000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:liabilities:total liabilities@scale=1e+06"}
+{"id": "INTC_2025-06-28_10Q_assets_0006", "answer": 192520000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "EMR_2025-06-30_10Q_equity_ratio_0007", "answer": 0.4494417574470009, "unit": "ratio", "confidence": 0.4, "reasoning": "ratio = 1.9886e+10/4.4246e+10 (table:stockholders_equity:total equity@scale=1e+06 / table:assets:total assets@scale=1e+06)"}
+{"id": "GS_2025-09-30_10Q_net_income_0001", "answer": 4098000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net earnings@scale=1e+06"}
+{"id": "INTC_2024-06-29_10Q_operating_margin_0007", "answer": -15.304293618016052, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*-1.964e+09/1.2833e+10 (table:operating_income:operating income@scale=1e+06 / table:revenue:net revenue@scale=1e+06)"}
+{"id": "EMR_2024-06-30_10Q_diluted_eps_0003", "answer": 0.57, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:diluted earnings per common share"}
+{"id": "MO_2026-03-31_10Q_operating_margin_0010", "answer": 54.45836403831982, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*2.956e+09/5.428e+09 (table:operating_income:operating income@scale=1e+06 / table:revenue:net revenues@scale=1e+06)"}
+{"id": "LLY_2025-03-31_10Q_assets_0004", "answer": 89388800000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}
+{"id": "GM_2024-12-31_10K_liabilities_0005", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "PG_2025-06-30_10K_equity_ratio_0005", "answer": 0.5, "unit": "ratio", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "MO_2025-03-31_10Q_revenue_0001", "answer": 5259000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:revenue:net revenues@scale=1e+06"}
+{"id": "AAPL_2024-12-28_10Q_net_income_0002", "answer": 36330000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:net_income:net income@scale=1e+06"}
+{"id": "MO_2025-09-30_10Q_gross_profit_0004", "answer": 3812000000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:gross_profit:gross profit@scale=1e+06"}
+{"id": "MO_2025-03-31_10Q_diluted_eps_0005", "answer": 0.63, "unit": "USD_per_share", "confidence": 0.4, "reasoning": "per-share table:diluted_eps:basic and diluted earnings per share"}
+{"id": "LLY_2024-06-30_10Q_net_margin_0007", "answer": 26.25013271047882, "unit": "percent", "confidence": 0.4, "reasoning": "percent = 100*2.967e+09/1.13028e+10 (table:net_income:net income@scale=1e+06 / table:revenue:revenue@scale=1e+06)"}
+{"id": "NFLX_2024-12-31_10K_equity_0005", "answer": 1000000000.0, "unit": "USD", "confidence": 0.05, "reasoning": "No heuristic or LLM candidate; emitted a conservative placeholder."}
+{"id": "LLY_2025-09-30_10Q_assets_0004", "answer": 114935400000.0, "unit": "USD", "confidence": 0.4, "reasoning": "currency via table:assets:total assets@scale=1e+06"}

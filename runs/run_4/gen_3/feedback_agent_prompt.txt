@@ -1,0 +1,3869 @@
+=== TARGET MODEL CLIENT SETUP (OpenAI-compatible provider: Sakana AI) ===
+
+The target model "fugu-mini" is served by an OpenAI-compatible API. The reference
+target_agent.py shown below may use a different SDK (e.g. the Gemini SDK) — you MUST
+refactor your target_agent.py to use the `openai` SDK configured for this provider
+(do NOT use the anthropic or google SDK):
+
+    import os
+    from openai import OpenAI
+
+    client = OpenAI(
+        base_url="https://api.sakana.ai/v1",
+        api_key=os.environ["SAKANA_API_KEY"],
+    )
+
+Call client.chat.completions.create(model="fugu-mini", ...) using OpenAI-style
+messages (and OpenAI function calling / response_format where the reference uses
+structured output). Do NOT compute a dollar cost: per-provider pricing is unknown, so
+set any cost field to 0 (token counts from the API response are still fine to record).
+
+You are an expert AI Engineer analyzing agent scaffolds for iterative improvement.
+
+**GENERATION CONTEXT**:
+- Current generation: 2
+- Previous generations: 1
+- Evolution history: ./runs/run_4/context.md
+
+**BEFORE ANALYZING - READ THE FULL HISTORY**:
+1. Read ./runs/run_4/context.md to understand:
+   - What improvements were tried in each previous generation
+   - Performance trends across generations
+   - What worked and what didn't work
+2. Review previous improvement.md files from earlier generations if helpful
+3. Don't repeat failed approaches from earlier generations
+4. Build upon successful patterns that improved performance
+
+---
+
+**SAMPLE TASK DESCRIPTIONS**:
+```
+# Sample Related Task Descriptions
+
+## Task 1: Numerical QA over SEC filings
+
+Given public excerpts from 10-K and 10-Q filings, answer a list of numerical finance questions. Each question may ask for a directly reported number such as revenue, assets, liabilities, cash flow, EPS, or gross profit, or a simple derived value such as a ratio or percentage. The output must be JSONL with one answer per input ID.
+
+-----
+
+## Task 2: Financial table extraction and normalization
+
+Read company filing text containing financial statements and footnotes. Extract the requested numeric value, normalize it to the required unit, and return a concise machine-readable answer. Currency answers should be raw USD; percentages should be percentage points; per-share values should use USD/share.
+
+-----
+
+## Task 3: Multi-record benchmark inference
+
+Process many independent benchmark examples. For each example, use only its supplied filing context and metadata, avoid private labels, produce an answer with a unit, and save all predictions to `submission.jsonl` in the writable working directory.
+
+```
+
+**CURRENT TARGET AGENT** (Generation 2):
+```python
+#!/usr/bin/env python3
+"""SIA-FinCheck target agent (Generation 2) backed by Sakana AI's `fugu-mini`.
+
+Goals over Generation 1:
+
+* Send the full filing context whenever it fits, and use **section-aware** trimming
+  (Balance Sheet / Income Statement / Cash Flow) when it does not.
+* Allow the model to fall back on training knowledge of S&P 100 filings when the
+  excerpt clearly lacks the requested line item, with calibrated low confidence.
+* Compute derived ratios (`equity_ratio`, `liabilities_to_assets`, etc.)
+  deterministically in Python after extracting the numerator and denominator.
+* Re-prompt once when the first answer is missing / null / fails a sanity check.
+* Robust trajectory logging: each example writes its full message log immediately,
+  even on transport errors, so logs survive a crash.
+
+The script accepts ``--dataset_dir`` (read-only) and ``--working_dir``
+(read/write) on the command line.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import random
+import re
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any
+
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - import guard
+    OpenAI = None  # type: ignore[assignment]
+
+
+MODEL = os.getenv("SIA_TARGET_MODEL", "fugu-mini")
+BASE_URL = os.getenv("SAKANA_BASE_URL", "https://api.sakana.ai/v1")
+API_KEY_ENV = "SAKANA_API_KEY"
+
+# Bumped above 18 K so the full filing context comfortably fits the budget.
+MAX_CONTEXT_CHARS = int(os.getenv("SIA_FINCHECK_MAX_CONTEXT_CHARS", "22000"))
+MAX_TOKENS = int(os.getenv("SIA_FINCHECK_MAX_TOKENS", "700"))
+MAX_WORKERS = int(os.getenv("SIA_FINCHECK_WORKERS", "6"))
+MAX_RETRIES = int(os.getenv("SIA_FINCHECK_RETRIES", "3"))
+# How many candidate dataset filenames to try (in order).
+DATASET_CANDIDATES = ("test.jsonl", "validation.jsonl", "train.jsonl")
+
+
+# --------------------------------------------------------------------------- #
+# JSONL helpers
+# --------------------------------------------------------------------------- #
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+    return rows
+
+
+def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def discover_dataset_file(dataset_dir: Path) -> Path | None:
+    """Pick the JSONL we should answer. Prefer test.jsonl."""
+    for name in DATASET_CANDIDATES:
+        cand = dataset_dir / name
+        if cand.is_file():
+            return cand
+    # Last resort: pick the largest .jsonl in the dataset_dir
+    jsonls = sorted(dataset_dir.glob("*.jsonl"), key=lambda p: p.stat().st_size, reverse=True)
+    return jsonls[0] if jsonls else None
+
+
+# --------------------------------------------------------------------------- #
+# Context selection
+# --------------------------------------------------------------------------- #
+_NUMERIC_RE = re.compile(r"[-+]?\$?\(?\d[\d,]*(?:\.\d+)?%?\)?")
+_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9_/-]{2,}")
+
+# Lines containing any of these phrases are boilerplate cover-page / risk text.
+_BOILERPLATE_TERMS = (
+    "indicate by check mark",
+    "forward-looking",
+    "forward looking",
+    "risk factor",
+    "table of contents",
+    "exchange act of 1934",
+    "incorporated by reference",
+    "proxy statement",
+    "shell company",
+    "registrant has filed",
+    "well-known seasoned issuer",
+    "smaller reporting company",
+    "emerging growth company",
+    "trading symbol",
+    "(zip code)",
+    "section 13",
+)
+
+_STOPWORDS = {
+    "what", "were", "was", "the", "company", "companies", "for", "and", "of", "as",
+    "at", "to", "in", "on", "ended", "year", "quarter", "fiscal", "total", "end",
+    "did", "from", "with", "this", "that", "are", "have", "has", "its", "their",
+    "report", "reported", "value", "period", "by", "a", "an", "answer", "show",
+    "shows", "any",
+}
+
+_KEYWORD_BOOSTS = {
+    "revenue": 6, "revenues": 6, "sales": 6, "net": 3,
+    "assets": 6, "liabilities": 6, "equity": 6, "stockholders": 5,
+    "cash": 5, "operating": 4, "income": 5, "loss": 4, "earnings": 6,
+    "diluted": 7, "basic": 5, "eps": 8, "per": 3, "share": 5, "shares": 4,
+    "gross": 6, "profit": 6, "margin": 6,
+    "expenses": 3, "cost": 3, "tax": 3, "interest": 3, "depreciation": 3,
+    "investing": 5, "financing": 5, "free": 4, "flow": 4, "cashflow": 6,
+    "dividends": 5, "dividend": 5,
+    "research": 4, "development": 4, "r&d": 6,
+    "current": 3, "noncurrent": 3, "long-term": 3, "longterm": 3, "short-term": 3,
+    "goodwill": 4, "inventory": 4, "inventories": 4, "receivable": 4, "payable": 4,
+    "ratio": 5,
+}
+
+# Detect financial statement section headers (case-insensitive).
+_FS_HEADER_RE = re.compile(
+    r"\b(consolidated\s+(condensed\s+)?(?:balance\s+sheets?|"
+    r"statements?\s+of\s+(?:operations?|income|earnings|cash\s+flows?|"
+    r"comprehensive(?:\s+(?:income|loss))?|stockholders.{0,3}\s*equity|financial\s+(?:condition|position))))",
+    re.IGNORECASE,
+)
+
+# Map question keywords -> which financial statement is the primary source.
+_FS_TYPE_BY_KEYWORD: dict[str, str] = {
+    "assets": "balance_sheet",
+    "liabilities": "balance_sheet",
+    "equity": "balance_sheet",
+    "stockholders": "balance_sheet",
+    "cash": "balance_sheet",  # also cash flow, but cash & equiv. lives in BS
+    "inventory": "balance_sheet",
+    "inventories": "balance_sheet",
+    "receivable": "balance_sheet",
+    "payable": "balance_sheet",
+    "goodwill": "balance_sheet",
+    "revenue": "income_statement",
+    "revenues": "income_statement",
+    "sales": "income_statement",
+    "income": "income_statement",
+    "profit": "income_statement",
+    "loss": "income_statement",
+    "earnings": "income_statement",
+    "eps": "income_statement",
+    "diluted": "income_statement",
+    "basic": "income_statement",
+    "margin": "income_statement",
+    "operating": "income_statement",
+    "gross": "income_statement",
+    "depreciation": "income_statement",
+    "expenses": "income_statement",
+    "tax": "income_statement",
+    "interest": "income_statement",
+    "investing": "cash_flow",
+    "financing": "cash_flow",
+    "dividends": "cash_flow",
+    "cashflow": "cash_flow",
+    "flow": "cash_flow",
+}
+
+_FS_HEADER_KEYWORDS = {
+    "balance_sheet": ("balance sheet",),
+    "income_statement": (
+        "statements of operations",
+        "statement of operations",
+        "statements of income",
+        "statement of income",
+        "statements of earnings",
+        "statement of earnings",
+        "statements of comprehensive income",
+    ),
+    "cash_flow": ("statements of cash flow", "statement of cash flow"),
+}
+
+
+def _question_terms(question: str) -> set[str]:
+    tokens = {tok.lower() for tok in _TOKEN_RE.findall(question or "")}
+    return {tok for tok in tokens if tok not in _STOPWORDS}
+
+
+def _primary_statement_for(question: str) -> str | None:
+    terms = _question_terms(question)
+    counts: dict[str, int] = {}
+    for term in terms:
+        kind = _FS_TYPE_BY_KEYWORD.get(term)
+        if kind:
+            counts[kind] = counts.get(kind, 0) + 1
+    if not counts:
+        return None
+    return max(counts.items(), key=lambda kv: kv[1])[0]
+
+
+def _scale_hint(context: str) -> str:
+    snippet = (context or "")[:8000].lower()
+    hints: list[str] = []
+    for phrase in (
+        "amounts in millions",
+        "(in millions",
+        "in millions of dollars",
+        "(in thousands",
+        "in thousands",
+        "(in billions",
+        "in billions",
+        "amounts in thousands",
+        "amounts in billions",
+        "except per share",
+    ):
+        if phrase in snippet:
+            hints.append(phrase)
+    return ", ".join(hints)
+
+
+def _find_section_spans(context: str) -> list[tuple[int, int, str]]:
+    """Return list of (start_line, end_line, header_text) for financial sections.
+
+    A section ends when we hit the next financial-statement header or EOF.
+    """
+    lines = context.splitlines()
+    headers: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        if _FS_HEADER_RE.search(line):
+            headers.append((idx, line.strip()))
+    spans: list[tuple[int, int, str]] = []
+    for i, (line_no, header) in enumerate(headers):
+        end_line = headers[i + 1][0] if i + 1 < len(headers) else len(lines)
+        # Cap the section size so a single accidental header doesn't swallow the doc.
+        end_line = min(end_line, line_no + 220)
+        spans.append((line_no, end_line, header))
+    return spans
+
+
+def _section_kind(header: str) -> str | None:
+    h = header.lower()
+    if "balance" in h:
+        return "balance_sheet"
+    if "cash flow" in h or "cash flows" in h:
+        return "cash_flow"
+    if (
+        "operations" in h
+        or "income" in h
+        or "earnings" in h
+        or "comprehensive" in h
+    ):
+        return "income_statement"
+    if "stockholders" in h or "shareholders" in h:
+        return "balance_sheet"
+    return None
+
+
+def _line_is_boilerplate(line: str) -> bool:
+    low = line.lower()
+    return any(term in low for term in _BOILERPLATE_TERMS)
+
+
+def context_excerpt(
+    context: str,
+    question: str,
+    max_chars: int = MAX_CONTEXT_CHARS,
+    primary_kind: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Compact a long filing excerpt down to the most useful sections.
+
+    Returns (excerpt, meta) where meta exposes which sections were included
+    so the trajectory can record what evidence we sent.
+    """
+    context = context or ""
+    meta: dict[str, Any] = {
+        "raw_chars": len(context),
+        "primary_kind": primary_kind,
+        "included_sections": [],
+        "trimmed": False,
+    }
+    if len(context) <= max_chars:
+        meta["trimmed"] = False
+        return context, meta
+
+    lines = [line.rstrip() for line in context.splitlines()]
+    if not lines:
+        return "", meta
+
+    # 1. Map out financial-statement sections in their original order.
+    spans = _find_section_spans(context)
+    section_text: dict[int, str] = {}
+    section_kind_by_idx: dict[int, str | None] = {}
+    section_size: dict[int, int] = {}
+    for i, (start, end, header) in enumerate(spans):
+        text = "\n".join(lines[start:end])
+        section_text[i] = text
+        section_kind_by_idx[i] = _section_kind(header)
+        section_size[i] = len(text)
+
+    # 2. Prioritise sections: primary kind first, then balance sheet -> IS -> CF.
+    order = ["balance_sheet", "income_statement", "cash_flow"]
+    if primary_kind and primary_kind in order:
+        order.remove(primary_kind)
+        order = [primary_kind] + order
+
+    picked_indices: list[int] = []
+    used = 0
+    budget = int(max_chars * 0.85)  # leave room for keyword-relevant fragments
+
+    for kind in order:
+        for i, k in section_kind_by_idx.items():
+            if k != kind or i in picked_indices:
+                continue
+            size = section_size[i]
+            if used + size <= budget:
+                picked_indices.append(i)
+                used += size
+                meta["included_sections"].append(
+                    {
+                        "header": spans[i][2][:120],
+                        "kind": kind,
+                        "chars": size,
+                    }
+                )
+
+    # 3. Score remaining lines for keyword relevance (outside picked sections).
+    picked_line_set: set[int] = set()
+    for i in picked_indices:
+        start, end, _ = spans[i]
+        picked_line_set.update(range(start, end))
+
+    terms = _question_terms(question)
+    scored: list[tuple[int, int, str]] = []
+    for idx, line in enumerate(lines):
+        if idx in picked_line_set:
+            continue
+        if not line.strip():
+            continue
+        if _line_is_boilerplate(line):
+            continue
+        low = line.lower()
+        score = 0
+        for term in terms:
+            if term in low:
+                score += 4 + _KEYWORD_BOOSTS.get(term, 0)
+        nums = _NUMERIC_RE.findall(line)
+        score += 2 * min(len(nums), 6)
+        if low.startswith("total "):
+            score += 6
+        # Lines that look like financial statement rows (e.g. include $ followed by digits).
+        if "$" in line and len(nums) >= 1:
+            score += 3
+        if score:
+            scored.append((score, idx, line))
+
+    selected_extra: set[int] = set()
+    extra_budget = max(0, max_chars - used)
+    # Take highest-scoring lines first, including immediate neighbours for table context.
+    extra_lines_used = 0
+    for _s, idx, _l in sorted(scored, reverse=True):
+        if extra_lines_used >= extra_budget:
+            break
+        for j in range(max(0, idx - 1), min(len(lines), idx + 2)):
+            if j in selected_extra or j in picked_line_set:
+                continue
+            selected_extra.add(j)
+            extra_lines_used += len(lines[j]) + 1
+
+    # 4. Assemble the excerpt: sections in original document order, then extras grouped.
+    pieces: list[str] = []
+    if picked_indices:
+        pieces.append("--- selected financial statement sections (verbatim) ---")
+        for i in sorted(picked_indices):
+            pieces.append(section_text[i])
+    if selected_extra:
+        pieces.append("\n--- additional question-relevant lines ---")
+        for idx in sorted(selected_extra):
+            pieces.append(lines[idx])
+    # Always include a tiny prelude with the document title-ish first lines (skip pure boilerplate).
+    prelude: list[str] = []
+    for line in lines[:60]:
+        if line.strip() and not _line_is_boilerplate(line):
+            prelude.append(line)
+        if sum(len(x) + 1 for x in prelude) > 800:
+            break
+    if prelude:
+        pieces.insert(0, "--- document prelude ---\n" + "\n".join(prelude))
+
+    excerpt = "\n".join(pieces)
+    meta["trimmed"] = True
+    meta["final_chars"] = len(excerpt)
+    return excerpt[:max_chars], meta
+
+
+# --------------------------------------------------------------------------- #
+# Prompt construction
+# --------------------------------------------------------------------------- #
+SYSTEM_PROMPT = (
+    "You are a careful financial analyst. You read excerpts from SEC 10-K and 10-Q "
+    "filings of S&P 100 companies and answer numerical questions with the correct unit. "
+    "You always reply with strict JSON containing keys: answer, unit, confidence, "
+    "reasoning. Always return a numeric `answer` (use 0 only as a last resort)."
+)
+
+
+def _answer_type_norm(answer_type: str) -> str:
+    a = (answer_type or "").strip().lower().replace("/", "_")
+    if a in {"usd_per_share", "usd per share", "per_share"}:
+        return "usd_per_share"
+    return a
+
+
+def _unit_guidance(answer_type: str, expected_unit: str) -> str:
+    answer_type = _answer_type_norm(answer_type)
+    expected_unit = (expected_unit or "").strip()
+    if answer_type == "currency":
+        return (
+            "Return a raw USD numeric value. If the filing tables say values are 'in "
+            "millions' multiply by 1,000,000; if 'in thousands' multiply by 1,000; if "
+            "'in billions' multiply by 1,000,000,000. Use 'USD' as the unit. Do not "
+            "include commas, currency symbols, or scale words in `answer`."
+        )
+    if answer_type == "percent":
+        return (
+            "Return the value in percentage points (e.g. 12.5 for 12.5%). Use 'percent' "
+            "as the unit. Do not include the % sign in `answer`."
+        )
+    if answer_type == "usd_per_share":
+        return (
+            "Return the per-share dollar amount (e.g. 6.11 for $6.11/share). Use "
+            "'USD_per_share' as the unit. Do not multiply by share counts."
+        )
+    if answer_type == "ratio":
+        return (
+            "Return a plain decimal ratio (e.g. 0.53 for 53%). Use 'ratio' as the unit. "
+            "Do NOT multiply by 100. Compute derived ratios from the SAME period's totals "
+            "in the most recent balance sheet."
+        )
+    return (
+        f"Use unit '{expected_unit or 'USD'}'. Output a clean numeric value with no "
+        "commas, currency symbols, or scale words."
+    )
+
+
+def build_primary_messages(
+    example: dict[str, Any],
+    dataset_dir: Path,
+    working_dir: Path,
+    excerpt: str,
+    excerpt_meta: dict[str, Any],
+    primary_kind: str | None,
+    allow_knowledge_fallback: bool = True,
+) -> list[dict[str, str]]:
+    scale_hint = _scale_hint(example.get("context", ""))
+    guidance = _unit_guidance(example.get("answer_type", ""), example.get("expected_unit", ""))
+
+    sandbox_note = (
+        "Sandbox paths (informational only — you do not access the filesystem yourself):\n"
+        f"- READ-ONLY dataset directory: {dataset_dir}\n"
+        f"- READ/WRITE working directory: {working_dir}\n"
+        "The orchestrating script already loaded the dataset and will write "
+        "`submission.jsonl` to the working directory after collecting your answer."
+    )
+
+    primary_kind_note = (
+        f"- Hint: this question is best answered from the {primary_kind.replace('_', ' ')} table."
+        if primary_kind
+        else ""
+    )
+
+    knowledge_clause = ""
+    if allow_knowledge_fallback:
+        knowledge_clause = (
+            "\n\nFallback rule (use sparingly):\n"
+            "- If — and ONLY if — the supplied excerpt clearly does not contain the requested "
+            "line item, you may use your training-data knowledge of this S&P 100 company's "
+            "publicly filed 10-K/10-Q to give your best numeric estimate. In that case set "
+            "`confidence` to ≤ 0.30 and explain in `reasoning` that you used training knowledge.\n"
+            "- Always return a numeric value, never `null`."
+        )
+
+    user_prompt = f"""{sandbox_note}
+
+You are answering ONE numerical question about an SEC filing excerpt.
+
+Question metadata:
+- ID: {example.get('id')}
+- Company: {example.get('company_name')} ({example.get('ticker')})
+- Form: {example.get('form')}
+- Filing date: {example.get('filing_date')}
+- Report date: {example.get('report_date')}
+- Fiscal year: {example.get('fiscal_year')}; fiscal period: {example.get('fiscal_period')}
+- Answer type: {example.get('answer_type')}
+- Expected unit: {example.get('expected_unit')}
+- Difficulty: {example.get('difficulty')}
+- Scale hint detected near front of context: {scale_hint or 'none'}
+{primary_kind_note}
+
+Unit / normalisation rule for this question:
+{guidance}
+
+General rules:
+- Prefer the filing context below as your evidence source.
+- For 10-Q questions about a SPECIFIC quarter ended on a given date, pick the column
+  whose period header matches that quarter exactly (e.g., "Three Months Ended"),
+  NOT the year-to-date column.
+- For balance-sheet questions about the end of a period, take the most recent
+  reported balance (the leftmost numeric column under the latest date).
+- For derived ratios (e.g., "liabilities-to-assets") compute the ratio from the SAME
+  period's totals in the most recent balance sheet.
+- Confidence is a float in [0, 1] reflecting how sure you are.
+- Reasoning is a SINGLE short sentence describing the source line(s) and any unit
+  conversion you applied.{knowledge_clause}
+
+Respond with strict JSON only, exactly in this shape:
+{{
+  "answer": <number>,
+  "unit": "<unit string>",
+  "confidence": <float 0-1>,
+  "reasoning": "<short evidence string>"
+}}
+
+Question: {example.get('question')}
+
+Filing context excerpt:
+\"\"\"
+{excerpt}
+\"\"\"
+"""
+
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def build_components_messages(
+    example: dict[str, Any],
+    excerpt: str,
+    numerator_name: str,
+    denominator_name: str,
+    primary_kind: str | None,
+) -> list[dict[str, str]]:
+    primary_kind_note = (
+        f"- Hint: extract from the {primary_kind.replace('_', ' ')} table."
+        if primary_kind
+        else ""
+    )
+
+    user_prompt = f"""You are extracting two raw USD values from an SEC filing excerpt so we can
+compute a derived ratio in Python. Do not compute the ratio yourself.
+
+Question metadata:
+- ID: {example.get('id')}
+- Company: {example.get('company_name')} ({example.get('ticker')})
+- Form: {example.get('form')}
+- Report date: {example.get('report_date')}
+- Fiscal year: {example.get('fiscal_year')}; fiscal period: {example.get('fiscal_period')}
+{primary_kind_note}
+
+Extraction rules:
+- Take the values from the SAME period (the most recent balance sheet column or
+  the column that matches the report date).
+- Return raw USD numbers. If the filing reports "in millions", multiply by 1,000,000.
+- If a value is not found, write the numeric value 0 and explain in `notes`.
+- Never return null; always emit a number.
+
+Respond with strict JSON only, exactly in this shape:
+{{
+  "{numerator_name}": <number>,
+  "{denominator_name}": <number>,
+  "unit": "USD",
+  "confidence": <float 0-1>,
+  "notes": "<short evidence string>"
+}}
+
+Filing context excerpt:
+\"\"\"
+{excerpt}
+\"\"\"
+"""
+
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# Model output parsing & normalisation
+# --------------------------------------------------------------------------- #
+def _safe_json_loads(text: str) -> dict[str, Any] | None:
+    text = (text or "").strip()
+    if not text:
+        return None
+    fence = re.match(r"^```(?:json)?\s*(.*?)\s*```$", text, re.DOTALL)
+    if fence:
+        text = fence.group(1).strip()
+    try:
+        obj = json.loads(text)
+        return obj if isinstance(obj, dict) else None
+    except json.JSONDecodeError:
+        pass
+    match = re.search(r"\{[\s\S]*\}", text)
+    if match:
+        snippet = match.group(0)
+        try:
+            obj = json.loads(snippet)
+            return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            # Try to recover by stripping trailing comma issues.
+            cleaned = re.sub(r",\s*([}\]])", r"\1", snippet)
+            try:
+                obj = json.loads(cleaned)
+                return obj if isinstance(obj, dict) else None
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+_NUMBER_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
+
+def _coerce_number(value: Any, unit_hint: str = "") -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        if math.isfinite(value):
+            return float(value)
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null", "n/a", "na", "-"}:
+        return None
+    negative = False
+    if re.fullmatch(r"\(.*\)", text):
+        negative = True
+        text = text[1:-1]
+    cleaned = text.replace("$", "").replace(",", "").replace("%", "")
+    match = _NUMBER_RE.search(cleaned)
+    if not match:
+        return None
+    try:
+        num = float(match.group(0))
+    except ValueError:
+        return None
+    if negative and num > 0:
+        num = -num
+    combined = f"{value} {unit_hint or ''}".lower()
+    if re.search(r"\bbillion(s)?\b|\bbn\b", combined):
+        num *= 1_000_000_000
+    elif re.search(r"\bmillion(s)?\b|\bmm\b", combined):
+        num *= 1_000_000
+    elif re.search(r"\bthousand(s)?\b", combined):
+        num *= 1_000
+    return num
+
+
+def _normalise_unit(answer_type: str, expected_unit: str, model_unit: Any) -> str:
+    answer_type = _answer_type_norm(answer_type)
+    if answer_type == "currency":
+        return "USD"
+    if answer_type == "percent":
+        return "percent"
+    if answer_type == "usd_per_share":
+        return "USD_per_share"
+    if answer_type == "ratio":
+        return "ratio"
+    if isinstance(model_unit, str) and model_unit.strip():
+        return model_unit.strip()
+    return expected_unit or ""
+
+
+def _post_process_answer(
+    answer_type: str,
+    expected_unit: str,
+    raw_answer: Any,
+    raw_unit: Any,
+) -> float | int | None:
+    answer_type = _answer_type_norm(answer_type)
+    raw_unit_str = str(raw_unit or "")
+    number = _coerce_number(raw_answer, raw_unit_str)
+    if number is None:
+        return None
+    if answer_type == "currency":
+        if abs(number) < 1_000_000:
+            lowered = raw_unit_str.lower()
+            if "billion" in lowered or "bn" in lowered:
+                number *= 1_000_000_000
+            elif "million" in lowered or "mm" in lowered:
+                number *= 1_000_000
+            elif "thousand" in lowered:
+                number *= 1_000
+        return number
+    if answer_type == "ratio":
+        # Convert obvious percent answers to ratios.
+        if abs(number) > 5 and ("%" in raw_unit_str or "percent" in raw_unit_str.lower()):
+            number /= 100.0
+        return number
+    if answer_type == "percent":
+        # If model returned 0.xx but unit says percent, treat as ratio mis-encoded.
+        if 0 < abs(number) <= 1 and "ratio" in raw_unit_str.lower():
+            number *= 100.0
+        return number
+    return number
+
+
+def _looks_invalid(answer_type: str, number: float | None) -> bool:
+    """Heuristic sanity check on the post-processed number."""
+    if number is None:
+        return True
+    if not math.isfinite(number):
+        return True
+    a = _answer_type_norm(answer_type)
+    if a == "currency":
+        # Allow negatives (operating loss). Zero is suspicious for direct currency.
+        return number == 0
+    if a == "usd_per_share":
+        return abs(number) > 10000
+    if a == "ratio":
+        return abs(number) > 100
+    if a == "percent":
+        return abs(number) > 10000
+    return False
+
+
+def _ratio_components(question: str) -> tuple[str, str, str | None] | None:
+    """If the question is a derived ratio, return (numerator, denominator, formula).
+
+    Returns names suitable for the components prompt. Returns None for non-ratio
+    questions or unrecognised ratios.
+    """
+    q = (question or "").lower()
+    if "liabilities-to-assets" in q or "liabilities to assets" in q:
+        return ("total_liabilities", "total_assets", "ratio")
+    if "equity ratio" in q or "equity-to-assets" in q or "equity to assets" in q:
+        return ("total_equity", "total_assets", "ratio")
+    if "debt-to-equity" in q or "debt to equity" in q:
+        return ("total_debt", "total_equity", "ratio")
+    if "current ratio" in q:
+        return ("current_assets", "current_liabilities", "ratio")
+    if "quick ratio" in q:
+        return ("quick_assets", "current_liabilities", "ratio")
+    return None
+
+
+# --------------------------------------------------------------------------- #
+# OpenAI client + per-example workflow
+# --------------------------------------------------------------------------- #
+def make_client() -> Any | None:
+    api_key = os.getenv(API_KEY_ENV) or os.getenv("OPENAI_API_KEY")
+    if OpenAI is None or not api_key:
+        return None
+    return OpenAI(base_url=BASE_URL, api_key=api_key)
+
+
+def _call_model(
+    client: Any,
+    messages: list[dict[str, str]],
+    *,
+    force_json: bool = True,
+) -> tuple[str, dict[str, int], str]:
+    """Call fugu-mini with retries. Returns (content, usage, finish_reason)."""
+    last_exc: Exception | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        kwargs: dict[str, Any] = {
+            "model": MODEL,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": MAX_TOKENS,
+        }
+        if force_json:
+            kwargs["response_format"] = {"type": "json_object"}
+        try:
+            response = client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+            content = choice.message.content or ""
+            finish_reason = getattr(choice, "finish_reason", "") or ""
+            usage_obj = getattr(response, "usage", None)
+            usage: dict[str, int] = {}
+            if usage_obj is not None:
+                for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                    val = getattr(usage_obj, key, None)
+                    if val is not None:
+                        usage[key] = int(val)
+            return content, usage, finish_reason
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            err_text = str(exc).lower()
+            # If the server rejects response_format, try without it once.
+            if force_json and "response_format" in err_text:
+                force_json = False
+                continue
+            sleep_for = min(2 ** attempt + random.random(), 15)
+            time.sleep(sleep_for)
+    raise RuntimeError(f"fugu-mini call failed after {MAX_RETRIES} attempts: {last_exc}")
+
+
+def _aggregate_usage(parts: list[dict[str, int]]) -> dict[str, int]:
+    agg: dict[str, int] = {}
+    for u in parts:
+        for k, v in (u or {}).items():
+            agg[k] = agg.get(k, 0) + int(v)
+    return agg
+
+
+def _fallback_prediction(example: dict[str, Any], reason: str) -> dict[str, Any]:
+    answer_type = _answer_type_norm(example.get("answer_type", ""))
+    if answer_type == "currency":
+        unit = "USD"
+    elif answer_type == "percent":
+        unit = "percent"
+    elif answer_type == "usd_per_share":
+        unit = "USD_per_share"
+    elif answer_type == "ratio":
+        unit = "ratio"
+    else:
+        unit = example.get("expected_unit") or ""
+    return {
+        "id": example.get("id"),
+        "answer": 0,
+        "unit": unit,
+        "confidence": 0.0,
+        "reasoning": f"Fallback placeholder: {reason}",
+    }
+
+
+def _build_final_pred(
+    example: dict[str, Any],
+    raw_answer: Any,
+    raw_unit: Any,
+    confidence_raw: Any,
+    reasoning: Any,
+) -> tuple[dict[str, Any], float | None]:
+    answer_type = example.get("answer_type", "")
+    expected_unit = example.get("expected_unit", "")
+    normalised = _post_process_answer(answer_type, expected_unit, raw_answer, raw_unit)
+    unit = _normalise_unit(answer_type, expected_unit, raw_unit)
+
+    if normalised is None:
+        final_answer: Any = raw_answer if raw_answer is not None else 0
+    else:
+        if abs(normalised - round(normalised)) < 1e-6 and abs(normalised) >= 1:
+            final_answer = int(round(normalised))
+        else:
+            final_answer = float(normalised)
+
+    try:
+        confidence = float(confidence_raw)
+    except (TypeError, ValueError):
+        confidence = 0.5
+    confidence = max(0.0, min(1.0, confidence))
+
+    if not isinstance(reasoning, str):
+        reasoning = json.dumps(reasoning) if reasoning is not None else ""
+
+    return {
+        "id": example.get("id"),
+        "answer": final_answer,
+        "unit": unit,
+        "confidence": confidence,
+        "reasoning": reasoning[:600],
+    }, normalised
+
+
+def _ratio_from_components(
+    parsed: dict[str, Any],
+    numerator_key: str,
+    denominator_key: str,
+    raw_unit: Any,
+) -> float | None:
+    num = _coerce_number(parsed.get(numerator_key), str(raw_unit or ""))
+    den = _coerce_number(parsed.get(denominator_key), str(raw_unit or ""))
+    if num is None or den is None or den == 0:
+        return None
+    # If both came back zero it's a "not found" signal from the model, not a real ratio.
+    if num == 0:
+        return None
+    return num / den
+
+
+def process_example(
+    example: dict[str, Any],
+    client: Any | None,
+    dataset_dir: Path,
+    working_dir: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    """Generate one prediction. Returns (pred, trajectory, meta)."""
+    question = example.get("question", "")
+    primary_kind = _primary_statement_for(question)
+    excerpt, excerpt_meta = context_excerpt(
+        example.get("context", ""), question, primary_kind=primary_kind
+    )
+    answer_type = _answer_type_norm(example.get("answer_type", ""))
+
+    trajectory: list[dict[str, Any]] = []
+    usage_parts: list[dict[str, int]] = []
+    meta: dict[str, Any] = {
+        "id": example.get("id"),
+        "model": MODEL,
+        "primary_kind": primary_kind,
+        "excerpt_meta": excerpt_meta,
+        "attempts": 0,
+        "knowledge_fallback_used": False,
+        "ratio_components_used": False,
+        "usage": {},
+        "cost": 0,
+        "finish_reason": "",
+        "ok": False,
+    }
+
+    def _record_messages(msgs: list[dict[str, str]]) -> None:
+        for m in msgs:
+            trajectory.append(
+                {"role": m["role"], "content": [{"type": "text", "text": m["content"]}]}
+            )
+
+    def _record_assistant(content: str, note: str | None = None) -> None:
+        text = content if not note else f"[{note}] {content}"
+        trajectory.append(
+            {"role": "assistant", "content": [{"type": "text", "text": text}]}
+        )
+
+    if client is None:
+        reason = f"missing {API_KEY_ENV} or `openai` package; using zero placeholder"
+        pred = _fallback_prediction(example, reason)
+        _record_messages(
+            build_primary_messages(
+                example, dataset_dir, working_dir, excerpt, excerpt_meta, primary_kind
+            )
+        )
+        _record_assistant(json.dumps(pred), "no_client")
+        meta["error"] = reason
+        return pred, trajectory, meta
+
+    # ----------------------------------------------------------------- #
+    # Attempt 1: deterministic ratio extraction for derived ratios.
+    # ----------------------------------------------------------------- #
+    primary_pred: dict[str, Any] | None = None
+    primary_number: float | None = None
+
+    components = _ratio_components(question) if answer_type == "ratio" else None
+    if components is not None:
+        num_name, den_name, _ = components
+        comp_msgs = build_components_messages(
+            example, excerpt, num_name, den_name, primary_kind
+        )
+        _record_messages(comp_msgs)
+        meta["attempts"] += 1
+        meta["ratio_components_used"] = True
+        try:
+            content, usage, finish_reason = _call_model(client, comp_msgs)
+            usage_parts.append(usage)
+            meta["finish_reason"] = finish_reason
+            _record_assistant(content, "ratio_components")
+            parsed = _safe_json_loads(content) or {}
+            ratio = _ratio_from_components(parsed, num_name, den_name, parsed.get("unit"))
+            if ratio is not None and math.isfinite(ratio):
+                pred, num = _build_final_pred(
+                    example,
+                    ratio,
+                    "ratio",
+                    parsed.get("confidence", 0.6),
+                    f"Computed {num_name}/{den_name} from extracted values "
+                    f"{parsed.get(num_name)}, {parsed.get(den_name)}.",
+                )
+                primary_pred = pred
+                primary_number = num
+        except Exception as exc:  # noqa: BLE001
+            _record_assistant(f"ratio components call failed: {exc}", "error")
+
+    # ----------------------------------------------------------------- #
+    # Attempt 2 (or 1 for non-ratio): standard single-shot extraction.
+    # ----------------------------------------------------------------- #
+    if primary_pred is None or _looks_invalid(answer_type, primary_number):
+        primary_msgs = build_primary_messages(
+            example,
+            dataset_dir,
+            working_dir,
+            excerpt,
+            excerpt_meta,
+            primary_kind,
+            allow_knowledge_fallback=True,
+        )
+        _record_messages(primary_msgs)
+        meta["attempts"] += 1
+        try:
+            content, usage, finish_reason = _call_model(client, primary_msgs)
+            usage_parts.append(usage)
+            meta["finish_reason"] = finish_reason
+            _record_assistant(content, "primary")
+            parsed = _safe_json_loads(content) or {}
+            pred, num = _build_final_pred(
+                example,
+                parsed.get("answer"),
+                parsed.get("unit") or example.get("expected_unit", ""),
+                parsed.get("confidence", 0.5),
+                parsed.get("reasoning") or "",
+            )
+            if primary_pred is None or (
+                not _looks_invalid(answer_type, num)
+                and (primary_number is None or _looks_invalid(answer_type, primary_number))
+            ):
+                primary_pred = pred
+                primary_number = num
+        except Exception as exc:  # noqa: BLE001
+            _record_assistant(f"primary call failed: {exc}", "error")
+
+    # ----------------------------------------------------------------- #
+    # Attempt 3: knowledge-only retry if current best looks invalid.
+    # ----------------------------------------------------------------- #
+    if primary_pred is None or _looks_invalid(answer_type, primary_number):
+        # Build a more aggressive prompt that explicitly invites knowledge use,
+        # and sends the WHOLE raw context (not the excerpt).
+        whole_excerpt = (example.get("context") or "")[:MAX_CONTEXT_CHARS]
+        retry_msgs = build_primary_messages(
+            example,
+            dataset_dir,
+            working_dir,
+            whole_excerpt,
+            {"raw_chars": len(example.get("context") or ""), "trimmed": False},
+            primary_kind,
+            allow_knowledge_fallback=True,
+        )
+        # Strengthen the knowledge-fallback wording in the user message.
+        retry_msgs[-1]["content"] += (
+            "\n\nIMPORTANT: Your previous attempt returned no usable value. "
+            "Please reconsider. If the excerpt truly does not contain the figure, "
+            "use your best knowledge of this S&P 100 company's public filings "
+            "for the requested period and unit. Always emit a non-null numeric answer."
+        )
+        _record_messages(retry_msgs)
+        meta["attempts"] += 1
+        meta["knowledge_fallback_used"] = True
+        try:
+            content, usage, finish_reason = _call_model(client, retry_msgs)
+            usage_parts.append(usage)
+            meta["finish_reason"] = finish_reason
+            _record_assistant(content, "knowledge_retry")
+            parsed = _safe_json_loads(content) or {}
+            pred, num = _build_final_pred(
+                example,
+                parsed.get("answer"),
+                parsed.get("unit") or example.get("expected_unit", ""),
+                parsed.get("confidence", 0.25),
+                parsed.get("reasoning") or "",
+            )
+            if pred and num is not None and not _looks_invalid(answer_type, num):
+                # Cap confidence on knowledge-fallback answers.
+                pred["confidence"] = min(pred.get("confidence", 0.25), 0.3)
+                primary_pred = pred
+                primary_number = num
+        except Exception as exc:  # noqa: BLE001
+            _record_assistant(f"knowledge retry failed: {exc}", "error")
+
+    if primary_pred is None:
+        primary_pred = _fallback_prediction(
+            example, "no valid model output across attempts"
+        )
+        meta["error"] = primary_pred["reasoning"]
+    else:
+        meta["ok"] = True
+
+    meta["usage"] = _aggregate_usage(usage_parts)
+    return primary_pred, trajectory, meta
+
+
+# --------------------------------------------------------------------------- #
+# Main
+# --------------------------------------------------------------------------- #
+def main() -> int:
+    parser = argparse.ArgumentParser(description="SIA-FinCheck target agent (fugu-mini, gen 2)")
+    parser.add_argument("--dataset_dir", required=True, help="Read-only dataset directory")
+    parser.add_argument("--working_dir", required=True, help="Writable output directory")
+    args = parser.parse_args()
+
+    dataset_dir = Path(args.dataset_dir).resolve()
+    working_dir = Path(args.working_dir).resolve()
+    if not dataset_dir.is_dir():
+        print(f"ERROR: dataset_dir does not exist: {dataset_dir}", file=sys.stderr)
+        return 2
+    working_dir.mkdir(parents=True, exist_ok=True)
+    exec_dir = working_dir / "agent_execution"
+    exec_dir.mkdir(parents=True, exist_ok=True)
+
+    test_path = discover_dataset_file(dataset_dir)
+    if test_path is None:
+        print(f"ERROR: could not find any .jsonl file in {dataset_dir}", file=sys.stderr)
+        return 2
+
+    examples = load_jsonl(test_path)
+    print(f"Loaded {len(examples)} examples from {test_path}")
+    print(f"Model: {MODEL}; base_url: {BASE_URL}")
+
+    client = make_client()
+    if client is None:
+        print(
+            f"WARNING: no Sakana credentials available (set ${API_KEY_ENV}); "
+            "writing zero fallbacks.",
+            file=sys.stderr,
+        )
+
+    predictions: list[dict[str, Any] | None] = [None] * len(examples)
+    trajectories: list[list[dict[str, Any]] | None] = [None] * len(examples)
+    metas: list[dict[str, Any] | None] = [None] * len(examples)
+
+    workers = max(1, MAX_WORKERS) if client is not None else 1
+    print_lock = threading.Lock()
+    submission_path = working_dir / "submission.jsonl"
+    start_time = time.time()
+    completed = [0]
+
+    def _write_trajectory(idx: int, traj: list[dict[str, Any]]) -> None:
+        try:
+            (exec_dir / f"execution_q{idx}.json").write_text(
+                json.dumps(traj, indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception as write_exc:  # noqa: BLE001
+            with print_lock:
+                print(f"  ! could not write trajectory {idx}: {write_exc}", file=sys.stderr)
+
+    def _flush_submission() -> None:
+        # Snapshot non-None preds in order; fill placeholders for any pending slots.
+        snapshot: list[dict[str, Any]] = []
+        for i, pred in enumerate(predictions):
+            if pred is None:
+                snapshot.append(_fallback_prediction(examples[i], "in-progress"))
+            else:
+                snapshot.append(pred)
+        try:
+            write_jsonl(submission_path, snapshot)
+        except Exception as exc:  # noqa: BLE001
+            with print_lock:
+                print(f"  ! could not flush submission: {exc}", file=sys.stderr)
+
+    def worker(idx: int) -> int:
+        example = examples[idx]
+        item_start = time.time()
+        try:
+            pred, trajectory, meta = process_example(
+                example, client, dataset_dir, working_dir
+            )
+        except Exception as exc:  # noqa: BLE001
+            reason = f"unexpected error: {exc}"
+            pred = _fallback_prediction(example, reason)
+            trajectory = [
+                {"role": "assistant", "content": [{"type": "text", "text": json.dumps(pred)}]}
+            ]
+            meta = {"id": example.get("id"), "ok": False, "error": reason, "usage": {}}
+        predictions[idx] = pred
+        trajectories[idx] = trajectory
+        metas[idx] = meta
+        _write_trajectory(idx, trajectory)
+        with print_lock:
+            elapsed = time.time() - item_start
+            completed[0] += 1
+            print(
+                f"[{completed[0]:3d}/{len(examples)}] {example.get('id')} -> "
+                f"{pred.get('answer')} {pred.get('unit')} "
+                f"(conf={float(pred.get('confidence', 0)):.2f}, "
+                f"attempts={meta.get('attempts', 0)}, "
+                f"{elapsed:.1f}s)"
+            )
+            if completed[0] % 20 == 0:
+                _flush_submission()
+        return idx
+
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(worker, i) for i in range(len(examples))]
+            for fut in as_completed(futures):
+                try:
+                    fut.result()
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ! worker failed: {exc}", file=sys.stderr)
+    else:
+        for i in range(len(examples)):
+            try:
+                worker(i)
+            except Exception as exc:  # noqa: BLE001
+                print(f"  ! worker {i} failed: {exc}", file=sys.stderr)
+
+    final_predictions: list[dict[str, Any]] = []
+    for idx, pred in enumerate(predictions):
+        if pred is None:
+            pred = _fallback_prediction(examples[idx], "no prediction recorded")
+            predictions[idx] = pred
+            _write_trajectory(
+                idx,
+                [{"role": "assistant", "content": [{"type": "text", "text": json.dumps(pred)}]}],
+            )
+        final_predictions.append(pred)
+
+    write_jsonl(submission_path, final_predictions)
+
+    summary = {
+        "model": MODEL,
+        "base_url": BASE_URL,
+        "dataset_dir": str(dataset_dir),
+        "working_dir": str(working_dir),
+        "submission_path": str(submission_path),
+        "n_examples": len(examples),
+        "n_predictions": len(final_predictions),
+        "client_available": client is not None,
+        "runtime_seconds": round(time.time() - start_time, 2),
+        "ok_predictions": sum(1 for m in metas if m and m.get("ok")),
+        "failed_predictions": sum(1 for m in metas if m and not m.get("ok")),
+        "knowledge_fallback_used": sum(
+            1 for m in metas if m and m.get("knowledge_fallback_used")
+        ),
+        "ratio_components_used": sum(
+            1 for m in metas if m and m.get("ratio_components_used")
+        ),
+        "total_attempts": sum((m or {}).get("attempts", 0) for m in metas),
+        "total_prompt_tokens": sum(
+            ((m or {}).get("usage", {}) or {}).get("prompt_tokens", 0) for m in metas
+        ),
+        "total_completion_tokens": sum(
+            ((m or {}).get("usage", {}) or {}).get("completion_tokens", 0) for m in metas
+        ),
+        "total_tokens": sum(
+            ((m or {}).get("usage", {}) or {}).get("total_tokens", 0) for m in metas
+        ),
+        "cost": 0,
+    }
+    (working_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2),
+        encoding="utf-8",
+    )
+
+    print(
+        f"Wrote {submission_path} with {len(final_predictions)} predictions in "
+        f"{summary['runtime_seconds']}s "
+        f"(ok={summary['ok_predictions']}, failed={summary['failed_predictions']}, "
+        f"knowledge_fallback={summary['knowledge_fallback_used']}, "
+        f"ratio_components={summary['ratio_components_used']})"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
+```
+
+**TASK WORKED ON**:
+```
+# SIA-FinCheck Task
+
+Answer numerical questions about recent SEC 10-K and 10-Q filing excerpts for current S&P 100 companies.
+
+## Files available to the target agent
+
+The target agent receives `--dataset_dir` pointing at this `data/public/` directory. It may read:
+
+- `train.jsonl` — 1,200 public training examples, labels hidden.
+- `validation.jsonl` — 150 public validation examples, labels hidden.
+- `test.jsonl` — 150 public test examples to answer for SIA evaluation.
+- `sample_submission.jsonl` — example JSONL output format.
+- `metadata/` — public dataset metadata.
+
+Private labels are not available to the target agent. They are used only by `evaluate.py`.
+
+## Public example schema
+
+Each public JSONL record includes filing metadata, a question, an expected answer unit, and filing-derived context. Private labels are intentionally omitted.
+
+Important fields include:
+
+- `id`
+- `ticker`
+- `company_name`
+- `form` (`10-K` or `10-Q`)
+- `filing_date`
+- `report_date`
+- `fiscal_year`
+- `fiscal_period`
+- `question`
+- `answer_type` (`currency`, `ratio`, `percent`, or `USD/share`)
+- `expected_unit`
+- `context`
+
+## Required output
+
+For SIA evaluation, answer every row in `test.jsonl` and write predictions to:
+
+```text
+<working_dir>/submission.jsonl
+```
+
+The target agent receives `--working_dir` as a writable output directory.
+
+Write one JSON object per line, in the same order as `test.jsonl` if possible:
+
+```json
+{"id":"AAPL_2024_10K_revenue_0001","answer":391035000000,"unit":"USD","confidence":0.82,"reasoning":"The filing reports net sales; I normalized to raw USD."}
+```
+
+Required fields:
+
+- `id`
+- `answer`
+- `unit`
+
+Optional fields:
+
+- `confidence`
+- `reasoning`
+
+## Units and normalization
+
+Use raw numeric answers unless the question clearly asks for a ratio, percent, or per-share value.
+
+- Currency labels are raw USD values. If a filing says `$391,035 million`, output `391035000000` with unit `USD`.
+- Percent labels are percentage points. If the answer is 12.5%, output `12.5` with unit `percent`.
+- Per-share answers should use unit `USD/share` or `USD_per_share`.
+- Ratios should use unit `ratio`.
+
+The evaluator is tolerant of common numeric formatting such as commas, `$`, parentheses for negatives, `%`, and million/billion scale words, but best practice is to output clean numeric values.
+
+## Scoring
+
+The evaluator uses a weighted score per item:
+
+- 80% numeric correctness within tolerance
+- 10% unit correctness
+- 5% valid required output fields
+- 5% derived-answer sanity checks
+
+The main metric is `overall_score` / `accuracy` in `results.json`.
+
+## Constraints
+
+- Use the filing context as the evidence source.
+- Do not try to read private labels or any paths outside `--dataset_dir` and `--working_dir`.
+- Do not modify files in `--dataset_dir`.
+- Save execution logs in `agent_execution/` or `agent_execution.json` as required by SIA.
+
+```
+
+**EXECUTION STATUS**:
+```
+SUCCESS: Target agent completed execution successfully.
+
+
+**EVALUATION RESULTS**:
+```json
+{
+  "accuracy": 0.8026666666666668,
+  "accuracy_percent": 80.26666666666668,
+  "correct": 113,
+  "counts_by_form_type": {
+    "10-K": 45,
+    "10-Q": 105
+  },
+  "counts_by_question_type": {
+    "currency": 93,
+    "percent": 20,
+    "ratio": 25,
+    "usd_per_share": 12
+  },
+  "derived_sanity_rate": 1.0,
+  "details": [
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "WMT_2026-01-31_10K_assets_0004",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 275000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2024-06-30_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 15770000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "IBM_2025-03-31_10Q_diluted_eps_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1.12,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_operating_income_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 42832000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2024-06-30_10Q_liabilities_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 100381000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "TXN_2025-06-30_10Q_liabilities_to_assets_0012",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.5304439927861907,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "TXN_2025-09-30_10Q_liabilities_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 18377000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-K",
+      "id": "TMO_2024-12-31_10K_diluted_eps_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 16.53,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "TMO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GS_2026-03-31_10Q_equity_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 122782000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2026-03-28_10Q_net_income_0002",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": -4281000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_operating_margin_0006",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 29.9,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2024-06-29_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 12833000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "MO_2024-09-30_10Q_operating_margin_0010",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 50.36,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "LLY_2024-09-30_10Q_cash_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 3369000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-06-29_10Q_cash_0009",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 25565000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2025-12-27_10Q_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 379297000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "TXN_2025-09-30_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1364000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_liabilities_to_assets_0008",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.76,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "IBM_2025-03-31_10Q_net_margin_0009",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 7.26,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-06-29_10Q_equity_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 66708000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 260823000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "TXN_2025-06-30_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1295000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-K",
+      "id": "WMT_2026-01-31_10K_diluted_eps_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 2.92,
+      "predicted_unit": "USD_per_share",
+      "score": 0.2,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GD_2025-03-30_10Q_equity_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 22225000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GD",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_operating_income_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 13000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "IBM_2025-09-30_10Q_net_margin_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 10.68,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "CVX_2025-09-30_10Q_diluted_eps_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1.82,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_gross_profit_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 58275000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2025-03-31_10Q_liabilities_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 106317000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "TXN_2025-09-30_10Q_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 35004000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "EMR_2025-12-31_10Q_diluted_eps_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1.07,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_equity_ratio_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.48,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 44000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2024-09-28_10Q_equity_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 99500000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "LLY_2025-03-31_10Q_net_margin_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 21.68,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "IBM_2026-03-31_10Q_equity_ratio_0011",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.21158683727092922,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 279761000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "TXN_2025-09-30_10Q_liabilities_to_assets_0012",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.5249971431836361,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2025-06-30_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 2194000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "TMO_2025-12-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 43500000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "TMO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2025-03-31_10Q_cash_0007",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 4638000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GD_2026-04-05_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 13481000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GD",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "EMR_2024-06-30_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 4380000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "WMT_2026-01-31_10K_operating_margin_0006",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 4.5,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_liabilities_to_assets_0008",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.77,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_diluted_eps_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 2.41,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_net_margin_0007",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 23.7,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "PFE_2025-12-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 63627000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "PFE",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_operating_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 29348000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2024-06-29_10Q_operating_income_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": -1964000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2025-09-30_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 6072000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "EMR_2025-03-31_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 41978000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "AAPL_2025-12-27_10Q_operating_margin_0010",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 35.37,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-06-29_10Q_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 331612000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "EMR_2025-06-30_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 586000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_equity_ratio_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.461369334875135,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "TXN_2026-03-31_10Q_equity_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 16778000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "TMO_2025-12-31_10K_equity_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 51500000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "TMO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "IBM_2025-06-30_10Q_equity_ratio_0011",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.18567150116095166,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "TXN_2026-03-31_10Q_equity_ratio_0013",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.4878318262437124,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "INTC_2026-03-28_10Q_net_margin_0010",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": -31.53,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2025-03-31_10Q_gross_profit_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 3249000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2024-09-30_10Q_liabilities_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 102202000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_equity_ratio_0009",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.24,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 190000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "MO_2025-03-31_10Q_net_margin_0011",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 20.48,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_net_margin_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 22.34,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2026-03-28_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 111184000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 681000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2024-09-30_10Q_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 34167000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GS_2025-09-30_10Q_liabilities_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1683580000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_operating_income_0002",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 8800000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "IBM_2025-06-30_10Q_net_margin_0009",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 12.92,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2025-12-27_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 42097000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "AAPL_2025-06-28_10Q_diluted_eps_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 1.57,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_operating_margin_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 4.31,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_assets_0004",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 290000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "CVX_2024-09-30_10Q_equity_ratio_0010",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.6057508332304654,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_operating_margin_0007",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 6.7,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GS_2025-06-30_10Q_net_income_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 3723000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "PFE_2024-12-31_10K_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 63627000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "PFE",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_liabilities_to_assets_0012",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.80598398651496,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "AAPL_2025-06-28_10Q_equity_ratio_0013",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.19858519736345948,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "LLY_2026-03-31_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 7396000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2025-03-29_10Q_operating_income_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": -301000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2025-03-31_10Q_assets_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 145667000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "TXN_2025-03-31_10Q_equity_ratio_0013",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.48600290310157895,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "TXN",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2025-03-31_10Q_equity_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 26880000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 8711631000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2024-06-30_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 260644000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "BNY_2025-06-30_10Q_equity_0005",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 43457000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "BNY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "BNY_2024-06-30_10Q_liabilities_to_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.905,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "BNY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "LLY_2025-09-30_10Q_diluted_eps_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 6.21,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GS_2026-03-31_10Q_net_income_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 5630000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "GS_2026-03-31_10Q_liabilities_to_assets_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.9404022949451019,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "WMT_2025-01-31_10K_equity_ratio_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.3489454534301039,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "BNY_2025-03-31_10Q_net_income_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 1182000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "BNY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_equity_ratio_0009",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.23,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_operating_margin_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 26.7,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_revenue_0001",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 187442000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2024-06-29_10Q_gross_profit_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 4547000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_operating_income_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 10077600000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 53631201000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2025-12-27_10Q_operating_income_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 50852000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2026-03-31_10Q_equity_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 183715000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "INTC_2024-09-28_10Q_equity_ratio_0010",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.48223333026273046,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2025-09-27_10Q_gross_profit_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 5218000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2026-03-31_10Q_cash_0008",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 10819000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GD_2024-09-29_10Q_equity_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 22973000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GD",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2025-06-30_10Q_liabilities_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 35538000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "BNY_2026-03-31_10Q_diluted_eps_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 2.24,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "BNY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_diluted_eps_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 2.4,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "INTC_2025-03-29_10Q_operating_margin_0009",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": -2.38,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2025-09-30_10Q_equity_0006",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 195600000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "EMR_2024-06-30_10Q_equity_0005",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 26688000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "PFE_2024-12-31_10K_equity_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 88545000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "PFE",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2026-03-31_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 329551000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-K",
+      "id": "GM_2025-12-31_10K_operating_margin_0007",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 4.5,
+      "predicted_unit": "percent",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2024-06-29_10Q_net_income_0002",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": -1654000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "WMT_2026-01-31_10K_operating_income_0002",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 31500000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "AAPL_2025-06-28_10Q_liabilities_to_assets_0012",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.8014148026365405,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 124300000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "LLY_2025-06-30_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 100922600000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "GD_2026-04-05_10Q_equity_ratio_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.44179979332192654,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "GD",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "SO_2024-12-31_10K_equity_0003",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 33700000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "SO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2024-09-30_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": -330000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2025-12-31_10K_assets_0004",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 60000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "CVX_2024-09-30_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 259232000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "CVX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "PG_2024-06-30_10K_equity_ratio_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.41591076244177494,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "PG",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "WMT_2026-01-31_10K_equity_ratio_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.35,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "WMT",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GD_2025-06-29_10Q_assets_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 56888000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GD",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2026-03-28_10Q_operating_income_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 35885000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "IBM_2025-09-30_10Q_liabilities_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 118322000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "IBM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2025-03-29_10Q_liabilities_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 264437000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "INTC_2025-06-28_10Q_assets_0006",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 192520000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-Q",
+      "id": "EMR_2025-06-30_10Q_equity_ratio_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.46771879483500717,
+      "predicted_unit": "ratio",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "GS_2025-09-30_10Q_net_income_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 4098000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "GS",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "INTC_2024-06-29_10Q_operating_margin_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": -15.3,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "INTC",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "EMR_2024-06-30_10Q_diluted_eps_0003",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.57,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "EMR",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "MO_2026-03-31_10Q_operating_margin_0010",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 54.46,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "LLY_2025-03-31_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 89388800000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "GM_2024-12-31_10K_liabilities_0005",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 215000000000.0,
+      "predicted_unit": "USD",
+      "score": 0.2,
+      "ticker": "GM",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "ratio",
+      "derived_sanity": true,
+      "domain": "ratio",
+      "form": "10-K",
+      "id": "PG_2025-06-30_10K_equity_ratio_0005",
+      "is_correct": false,
+      "numeric_correct": false,
+      "predicted_number": 0.4,
+      "predicted_unit": "ratio",
+      "score": 0.2,
+      "ticker": "PG",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2025-03-31_10Q_revenue_0001",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 5259000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "AAPL_2024-12-28_10Q_net_income_0002",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 36330000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "AAPL",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "MO_2025-09-30_10Q_gross_profit_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 3812000000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "usd_per_share",
+      "derived_sanity": true,
+      "domain": "usd_per_share",
+      "form": "10-Q",
+      "id": "MO_2025-03-31_10Q_diluted_eps_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 0.63,
+      "predicted_unit": "USD_per_share",
+      "score": 1.0,
+      "ticker": "MO",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "percent",
+      "derived_sanity": true,
+      "domain": "percent",
+      "form": "10-Q",
+      "id": "LLY_2024-06-30_10Q_net_margin_0007",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 26.25,
+      "predicted_unit": "percent",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-K",
+      "id": "NFLX_2024-12-31_10K_equity_0005",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 24743514000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "NFLX",
+      "unit_correct": true,
+      "valid_format": true
+    },
+    {
+      "answer_type": "currency",
+      "derived_sanity": true,
+      "domain": "currency",
+      "form": "10-Q",
+      "id": "LLY_2025-09-30_10Q_assets_0004",
+      "is_correct": true,
+      "numeric_correct": true,
+      "predicted_number": 114935400000.0,
+      "predicted_unit": "USD",
+      "score": 1.0,
+      "ticker": "LLY",
+      "unit_correct": true,
+      "valid_format": true
+    }
+  ],
+  "n_labels": 150,
+  "n_matched_predictions": 150,
+  "n_missing_required_fields": 0,
+  "n_prediction_lines": 150,
+  "n_valid_json_lines": 150,
+  "numeric_accuracy": 0.7533333333333333,
+  "overall_score": 0.8026666666666668,
+  "predictions_path": "/workspace/sec-10k-10q-qa/runs/run_4/gen_2/submission.jsonl",
+  "score_by_form_type": {
+    "10-K": 0.5022222222222222,
+    "10-Q": 0.9314285714285714
+  },
+  "score_by_question_type": {
+    "currency": 0.7935483870967741,
+    "percent": 0.76,
+    "ratio": 0.8079999999999999,
+    "usd_per_share": 0.9333333333333332
+  },
+  "status": "success",
+  "total": 150,
+  "unit_accuracy": 1.0,
+  "valid_json_rate": 1.0,
+  "valid_output_format_rate": 1.0
+}
+```
+
+
+**Last 10 lines of output**:
+```
+[143/150] AAPL_2024-12-28_10Q_net_income_0002 -> 36330000000 USD (conf=0.99, attempts=1, 2.8s)
+[144/150] GM_2024-12-31_10K_liabilities_0005 -> 215000000000 USD (conf=0.25, attempts=1, 4.1s)
+[145/150] MO_2025-09-30_10Q_gross_profit_0004 -> 3812000000 USD (conf=0.98, attempts=1, 2.5s)
+[146/150] MO_2025-03-31_10Q_diluted_eps_0005 -> 0.63 USD_per_share (conf=0.99, attempts=1, 2.5s)
+[147/150] LLY_2024-06-30_10Q_net_margin_0007 -> 26.25 percent (conf=0.97, attempts=1, 2.4s)
+[148/150] NFLX_2024-12-31_10K_equity_0005 -> 24743514000 USD (conf=0.28, attempts=1, 4.1s)
+[149/150] LLY_2025-09-30_10Q_assets_0004 -> 114935400000 USD (conf=0.99, attempts=1, 4.3s)
+[150/150] PG_2025-06-30_10K_equity_ratio_0005 -> 0.4 ratio (conf=0.25, attempts=2, 12.5s)
+Wrote /workspace/sec-10k-10q-qa/runs/run_4/gen_2/submission.jsonl with 150 predictions in 103.11s (ok=150, failed=0, knowledge_fallback=1, ratio_components=25)
+
+```
+
+Full logs available at: /workspace/sec-10k-10q-qa/runs/run_4/gen_2/target_agent_stdout.log
+
+```
+
+**EXECUTION LOGS**:
+
+**MULTI-TRAJECTORY EXECUTION**:
+
+The agent executed 150 separate trajectories (e.g., different questions/samples).
+
+**Summary**:
+- Total trajectories: 150
+- Successful: 150
+- Failed: 0
+- Execution folder: /workspace/sec-10k-10q-qa/runs/run_4/gen_2/agent_execution
+
+**Sample Trajectories** (first 3 shown, you can read others from the folder):
+
+### Trajectory 0
+```json
+[
+  {
+    "role": "system",
+    "content": [
+      {
+        "type": "text",
+        "text": "You are a careful financial analyst. You read excerpts from SEC 10-K and 10-Q filings of S&P 100 companies and answer numerical questions with the correct unit. You always reply with strict JSON containing keys: answer, unit, confidence, reasoning. Always return a numeric `answer` (use 0 only as a last resort)."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Sandbox paths (informational only \u2014 you do not access the filesystem yourself):\n- READ-ONLY dataset directory: /workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public\n- READ/WRITE working directory: /workspace/sec-10k-10q-qa/runs/run_4/gen_2\nThe orchestrating script already loaded the dataset and will write `submission.jsonl` to the working directory after collecting your answer.\n\nYou are answering ONE numerical question about an SEC filing excerpt.\n\nQuestion metada
+  ... (truncated)
+```
+
+### Trajectory 1
+```json
+[
+  {
+    "role": "system",
+    "content": [
+      {
+        "type": "text",
+        "text": "You are a careful financial analyst. You read excerpts from SEC 10-K and 10-Q filings of S&P 100 companies and answer numerical questions with the correct unit. You always reply with strict JSON containing keys: answer, unit, confidence, reasoning. Always return a numeric `answer` (use 0 only as a last resort)."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Sandbox paths (informational only \u2014 you do not access the filesystem yourself):\n- READ-ONLY dataset directory: /workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public\n- READ/WRITE working directory: /workspace/sec-10k-10q-qa/runs/run_4/gen_2\nThe orchestrating script already loaded the dataset and will write `submission.jsonl` to the working directory after collecting your answer.\n\nYou are answering ONE numerical question about an SEC filing excerpt.\n\nQuestion metada
+  ... (truncated)
+```
+
+### Trajectory 2
+```json
+[
+  {
+    "role": "system",
+    "content": [
+      {
+        "type": "text",
+        "text": "You are a careful financial analyst. You read excerpts from SEC 10-K and 10-Q filings of S&P 100 companies and answer numerical questions with the correct unit. You always reply with strict JSON containing keys: answer, unit, confidence, reasoning. Always return a numeric `answer` (use 0 only as a last resort)."
+      }
+    ]
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "text",
+        "text": "Sandbox paths (informational only \u2014 you do not access the filesystem yourself):\n- READ-ONLY dataset directory: /workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public\n- READ/WRITE working directory: /workspace/sec-10k-10q-qa/runs/run_4/gen_2\nThe orchestrating script already loaded the dataset and will write `submission.jsonl` to the working directory after collecting your answer.\n\nYou are answering ONE numerical question about an SEC filing excerpt.\n\nQuestion metada
+  ... (truncated)
+```
+
+
+**To analyze all trajectories**:
+- Read files from: /workspace/sec-10k-10q-qa/runs/run_4/gen_2/agent_execution
+- Files named: execution_q0.json, execution_q1.json, ..., execution_q149.json
+
+**Analysis guidance**:
+- Look for common failure patterns across trajectories
+- Check if trajectories are properly isolated
+- Ensure consistent behavior across all samples
+
+
+---
+
+**YOUR TASK**:
+
+You must create exactly TWO files in /workspace/sec-10k-10q-qa/runs/run_4/gen_3/:
+1. improvement.md - Analysis and improvement plan
+2. target_agent.py - The improved agent implementation
+
+Follow these steps:
+
+**STEP 1: Analyze the execution**:
+   - For multi-trajectory: Look for patterns across all trajectories
+   - For single-trajectory: Analyze the full execution flow
+   - Identify what worked well and what failed
+   - Check for consistency and robustness
+
+**STEP 2: Review evolution history**:
+   - Read context.md to see the full evolution
+   - Understand what was tried in previous generations
+   - Build upon successful patterns
+   - Avoid repeating failed approaches
+
+**STEP 3: Write improvement.md**:
+   - MUST save to: /workspace/sec-10k-10q-qa/runs/run_4/gen_3/improvement.md
+   - Document your analysis and planned improvements
+   - Focus on structural improvements to the agent scaffold
+   - Make the agent more robust and generalizable
+   - Don't optimize for this specific task
+   - Reference insights from previous generations if applicable
+
+**STEP 4: Create improved target_agent.py**:
+   - MUST save to: /workspace/sec-10k-10q-qa/runs/run_4/gen_3/target_agent.py
+   - Implement the improvements documented in improvement.md
+   - Apply all the planned improvements from step 3
+   - Do not create or modify any other files besides these two
+
+**RULES**:
+- Focus on agent structure, not task-specific optimizations
+- Make the agent work well across diverse task types (see sample task descriptions)
+- If execution failed, fix the root cause
+- If multi-trajectory: ensure each trajectory is properly isolated and logged
+- Consider error handling, logging mechanisms, and robustness
+- Build upon successful patterns from previous generations (check context.md)
+- If execution log shows errors or is incomplete, suggest improvements to ensure proper logging
+
+NOTE: The agent execution log may be incomplete or contain errors if the target agent crashed. If you see an "error" field, focus on making the agent more robust to prevent such failures.

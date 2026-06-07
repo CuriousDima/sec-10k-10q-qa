@@ -1,0 +1,433 @@
+[SIA-FinCheck] Loaded 150 test examples from /workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public/test.jsonl
+[SIA-FinCheck] Working directory: /workspace/sec-10k-10q-qa/runs/run_6/gen_1
+[SIA-FinCheck] LLM enabled: True; model: /workspace/gemma_checkpoints/gemma-4-31B-it
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading weights:   0%|          | 0/1188 [00:00<?, ?it/s]
+Loading weights:   0%|          | 2/1188 [00:02<23:28,  1.19s/it]
+Loading weights:   0%|          | 5/1188 [00:02<08:05,  2.44it/s]
+Loading weights:   1%|          | 7/1188 [00:02<06:34,  2.99it/s]
+Loading weights:   1%|          | 12/1188 [00:03<03:07,  6.27it/s]
+Loading weights:   1%|▏         | 15/1188 [00:03<02:18,  8.46it/s]
+Loading weights:   2%|▏         | 19/1188 [00:03<01:52, 10.43it/s]
+Loading weights:   2%|▏         | 21/1188 [00:03<02:20,  8.30it/s]
+Loading weights:   2%|▏         | 27/1188 [00:04<01:39, 11.67it/s]
+Loading weights:   3%|▎         | 33/1188 [00:04<01:18, 14.63it/s]
+Loading weights:   3%|▎         | 35/1188 [00:04<01:45, 10.89it/s]
+Loading weights:   3%|▎         | 40/1188 [00:05<01:24, 13.59it/s]
+Loading weights:   4%|▎         | 43/1188 [00:05<01:19, 14.41it/s]
+Loading weights:   4%|▍         | 47/1188 [00:05<01:17, 14.70it/s]
+Loading weights:   4%|▍         | 49/1188 [00:05<01:52, 10.14it/s]
+Loading weights:   5%|▍         | 55/1188 [00:06<01:13, 15.31it/s]
+Loading weights:   5%|▌         | 61/1188 [00:06<01:13, 15.30it/s]
+Loading weights:   5%|▌         | 64/1188 [00:06<01:26, 12.94it/s]
+Loading weights:   6%|▌         | 69/1188 [00:06<01:05, 17.00it/s]
+Loading weights:   6%|▌         | 72/1188 [00:07<00:59, 18.69it/s]
+Loading weights:   6%|▋         | 75/1188 [00:07<01:06, 16.78it/s]
+Loading weights:   7%|▋         | 78/1188 [00:07<01:36, 11.47it/s]
+Loading weights:   7%|▋         | 83/1188 [00:08<01:21, 13.55it/s]
+Loading weights:   7%|▋         | 85/1188 [00:08<01:27, 12.58it/s]
+Loading weights:   7%|▋         | 88/1188 [00:08<02:10,  8.44it/s]
+Loading weights:   8%|▊         | 96/1188 [00:09<01:15, 14.55it/s]
+Loading weights:   8%|▊         | 99/1188 [00:09<01:06, 16.28it/s]
+Loading weights:   9%|▊         | 102/1188 [00:09<01:07, 16.13it/s]
+Loading weights:   9%|▉         | 105/1188 [00:09<01:30, 11.92it/s]
+Loading weights:   9%|▉         | 110/1188 [00:10<01:06, 16.13it/s]
+Loading weights:  10%|▉         | 116/1188 [00:10<00:58, 18.46it/s]
+Loading weights:  10%|█         | 119/1188 [00:10<01:15, 14.08it/s]
+Loading weights:  10%|█         | 124/1188 [00:10<01:05, 16.31it/s]
+Loading weights:  11%|█         | 127/1188 [00:10<00:58, 18.07it/s]
+Loading weights:  11%|█         | 130/1188 [00:11<01:04, 16.34it/s]
+Loading weights:  11%|█         | 132/1188 [00:11<01:27, 12.11it/s]
+Loading weights:  11%|█▏        | 136/1188 [00:11<01:10, 14.82it/s]
+Loading weights:  12%|█▏        | 141/1188 [00:11<00:54, 19.35it/s]
+Loading weights:  12%|█▏        | 144/1188 [00:12<01:02, 16.76it/s]
+Loading weights:  12%|█▏        | 147/1188 [00:12<01:29, 11.58it/s]
+Loading weights:  13%|█▎        | 152/1188 [00:12<01:06, 15.56it/s]
+Loading weights:  13%|█▎        | 158/1188 [00:13<00:59, 17.36it/s]
+Loading weights:  14%|█▎        | 161/1188 [00:13<01:10, 14.47it/s]
+Loading weights:  14%|█▍        | 166/1188 [00:13<01:05, 15.51it/s]
+Loading weights:  14%|█▍        | 168/1188 [00:13<01:04, 15.72it/s]
+Loading weights:  14%|█▍        | 171/1188 [00:13<01:02, 16.35it/s]
+Loading weights:  15%|█▍        | 173/1188 [00:14<01:25, 11.83it/s]
+Loading weights:  15%|█▍        | 178/1188 [00:14<01:05, 15.48it/s]
+Loading weights:  16%|█▌        | 185/1188 [00:14<00:51, 19.47it/s]
+Loading weights:  16%|█▌        | 188/1188 [00:15<01:10, 14.24it/s]
+Loading weights:  16%|█▌        | 192/1188 [00:15<00:58, 16.92it/s]
+Loading weights:  16%|█▋        | 196/1188 [00:15<00:49, 19.89it/s]
+Loading weights:  17%|█▋        | 199/1188 [00:15<00:53, 18.41it/s]
+Loading weights:  17%|█▋        | 202/1188 [00:15<01:12, 13.52it/s]
+Loading weights:  17%|█▋        | 207/1188 [00:16<00:58, 16.88it/s]
+Loading weights:  18%|█▊        | 210/1188 [00:16<00:52, 18.59it/s]
+Loading weights:  18%|█▊        | 213/1188 [00:16<00:57, 16.87it/s]
+Loading weights:  18%|█▊        | 215/1188 [00:16<01:29, 10.91it/s]
+Loading weights:  19%|█▊        | 220/1188 [00:17<01:05, 14.87it/s]
+Loading weights:  19%|█▉        | 223/1188 [00:17<01:08, 13.99it/s]
+Loading weights:  19%|█▉        | 227/1188 [00:17<01:05, 14.77it/s]
+Loading weights:  19%|█▉        | 229/1188 [00:17<01:27, 10.99it/s]
+Loading weights:  20%|█▉        | 235/1188 [00:18<00:56, 16.98it/s]
+Loading weights:  20%|██        | 238/1188 [00:18<00:50, 18.69it/s]
+Loading weights:  20%|██        | 241/1188 [00:18<00:53, 17.77it/s]
+Loading weights:  21%|██        | 244/1188 [00:18<01:14, 12.65it/s]
+Loading weights:  21%|██        | 247/1188 [00:18<01:09, 13.59it/s]
+Loading weights:  21%|██        | 251/1188 [00:19<01:01, 15.21it/s]
+Loading weights:  21%|██▏       | 253/1188 [00:19<01:17, 12.00it/s]
+Loading weights:  21%|██▏       | 255/1188 [00:20<02:01,  7.68it/s]
+Loading weights:  22%|██▏       | 261/1188 [00:20<01:18, 11.76it/s]
+Loading weights:  22%|██▏       | 263/1188 [00:20<01:16, 12.12it/s]
+Loading weights:  23%|██▎       | 268/1188 [00:20<01:07, 13.58it/s]
+Loading weights:  23%|██▎       | 270/1188 [00:21<01:39,  9.23it/s]
+Loading weights:  23%|██▎       | 276/1188 [00:21<01:05, 13.95it/s]
+Loading weights:  23%|██▎       | 279/1188 [00:21<00:59, 15.27it/s]
+Loading weights:  24%|██▎       | 282/1188 [00:21<01:01, 14.68it/s]
+Loading weights:  24%|██▍       | 284/1188 [00:22<01:38,  9.20it/s]
+Loading weights:  24%|██▍       | 290/1188 [00:22<01:03, 14.09it/s]
+Loading weights:  25%|██▍       | 293/1188 [00:22<00:59, 15.13it/s]
+Loading weights:  25%|██▍       | 296/1188 [00:22<01:05, 13.63it/s]
+Loading weights:  25%|██▌       | 298/1188 [00:23<01:36,  9.19it/s]
+Loading weights:  26%|██▌       | 304/1188 [00:23<01:02, 14.08it/s]
+Loading weights:  26%|██▌       | 307/1188 [00:23<01:04, 13.64it/s]
+Loading weights:  26%|██▌       | 310/1188 [00:24<01:16, 11.43it/s]
+Loading weights:  26%|██▋       | 312/1188 [00:24<01:47,  8.16it/s]
+Loading weights:  27%|██▋       | 317/1188 [00:24<01:12, 12.05it/s]
+Loading weights:  27%|██▋       | 320/1188 [00:24<01:02, 13.88it/s]
+Loading weights:  27%|██▋       | 324/1188 [00:25<00:56, 15.17it/s]
+Loading weights:  28%|██▊       | 327/1188 [00:25<01:12, 11.86it/s]
+Loading weights:  28%|██▊       | 331/1188 [00:25<01:03, 13.57it/s]
+Loading weights:  28%|██▊       | 334/1188 [00:25<00:58, 14.60it/s]
+Loading weights:  28%|██▊       | 337/1188 [00:26<00:59, 14.18it/s]
+Loading weights:  29%|██▊       | 339/1188 [00:26<01:23, 10.18it/s]
+Loading weights:  29%|██▉       | 343/1188 [00:26<01:02, 13.52it/s]
+Loading weights:  29%|██▉       | 347/1188 [00:26<00:52, 16.16it/s]
+Loading weights:  30%|██▉       | 351/1188 [00:27<00:47, 17.44it/s]
+Loading weights:  30%|██▉       | 354/1188 [00:27<01:11, 11.63it/s]
+Loading weights:  30%|███       | 359/1188 [00:27<01:03, 13.15it/s]
+Loading weights:  31%|███       | 365/1188 [00:28<01:03, 13.01it/s]
+Loading weights:  31%|███       | 367/1188 [00:28<01:24,  9.68it/s]
+Loading weights:  31%|███▏      | 372/1188 [00:29<01:10, 11.51it/s]
+Loading weights:  32%|███▏      | 379/1188 [00:29<00:56, 14.39it/s]
+Loading weights:  32%|███▏      | 381/1188 [00:30<01:20,  9.96it/s]
+Loading weights:  33%|███▎      | 387/1188 [00:30<00:57, 13.95it/s]
+Loading weights:  33%|███▎      | 390/1188 [00:30<00:58, 13.56it/s]
+Loading weights:  33%|███▎      | 394/1188 [00:30<00:50, 15.60it/s]
+Loading weights:  33%|███▎      | 396/1188 [00:30<00:56, 13.99it/s]
+Loading weights:  34%|███▎      | 400/1188 [00:31<00:52, 14.99it/s]
+Loading weights:  34%|███▍      | 407/1188 [00:31<00:40, 19.14it/s]
+Loading weights:  35%|███▍      | 410/1188 [00:31<00:57, 13.48it/s]
+Loading weights:  35%|███▍      | 415/1188 [00:32<01:00, 12.77it/s]
+Loading weights:  35%|███▌      | 420/1188 [00:32<00:49, 15.39it/s]
+Loading weights:  36%|███▌      | 422/1188 [00:32<01:08, 11.20it/s]
+Loading weights:  36%|███▌      | 428/1188 [00:32<00:48, 15.67it/s]
+Loading weights:  36%|███▋      | 431/1188 [00:33<00:44, 16.95it/s]
+Loading weights:  37%|███▋      | 434/1188 [00:33<00:53, 14.04it/s]
+Loading weights:  37%|███▋      | 436/1188 [00:33<01:08, 10.95it/s]
+Loading weights:  37%|███▋      | 440/1188 [00:33<00:51, 14.39it/s]
+Loading weights:  37%|███▋      | 445/1188 [00:33<00:38, 19.53it/s]
+Loading weights:  38%|███▊      | 448/1188 [00:34<00:42, 17.48it/s]
+Loading weights:  38%|███▊      | 451/1188 [00:34<00:54, 13.55it/s]
+Loading weights:  38%|███▊      | 456/1188 [00:34<00:41, 17.47it/s]
+Loading weights:  39%|███▊      | 459/1188 [00:34<00:38, 18.94it/s]
+Loading weights:  39%|███▉      | 462/1188 [00:35<00:40, 18.06it/s]
+Loading weights:  39%|███▉      | 465/1188 [00:35<00:52, 13.76it/s]
+Loading weights:  40%|███▉      | 470/1188 [00:35<00:49, 14.46it/s]
+Loading weights:  40%|████      | 476/1188 [00:36<00:46, 15.23it/s]
+Loading weights:  40%|████      | 478/1188 [00:36<01:15,  9.38it/s]
+Loading weights:  41%|████      | 483/1188 [00:36<00:54, 12.89it/s]
+Loading weights:  41%|████      | 486/1188 [00:36<00:48, 14.60it/s]
+Loading weights:  41%|████      | 490/1188 [00:37<00:53, 13.06it/s]
+Loading weights:  41%|████▏     | 492/1188 [00:37<01:05, 10.58it/s]
+Loading weights:  42%|████▏     | 498/1188 [00:37<00:44, 15.59it/s]
+Loading weights:  42%|████▏     | 501/1188 [00:37<00:41, 16.51it/s]
+Loading weights:  42%|████▏     | 504/1188 [00:38<01:19,  8.63it/s]
+Loading weights:  43%|████▎     | 511/1188 [00:39<00:50, 13.29it/s]
+Loading weights:  43%|████▎     | 514/1188 [00:39<00:45, 14.88it/s]
+Loading weights:  44%|████▎     | 517/1188 [00:39<00:47, 14.12it/s]
+Loading weights:  44%|████▍     | 520/1188 [00:39<01:04, 10.41it/s]
+Loading weights:  44%|████▍     | 523/1188 [00:40<00:59, 11.21it/s]
+Loading weights:  44%|████▍     | 528/1188 [00:40<00:43, 15.13it/s]
+Loading weights:  45%|████▍     | 531/1188 [00:40<00:49, 13.25it/s]
+Loading weights:  45%|████▍     | 533/1188 [00:41<01:11,  9.22it/s]
+Loading weights:  45%|████▌     | 538/1188 [00:41<00:55, 11.79it/s]
+Loading weights:  46%|████▌     | 545/1188 [00:41<00:44, 14.44it/s]
+Loading weights:  46%|████▌     | 547/1188 [00:42<01:03, 10.16it/s]
+Loading weights:  47%|████▋     | 553/1188 [00:42<00:46, 13.75it/s]
+Loading weights:  47%|████▋     | 555/1188 [00:42<00:43, 14.41it/s]
+Loading weights:  47%|████▋     | 559/1188 [00:42<00:40, 15.54it/s]
+Loading weights:  47%|████▋     | 561/1188 [00:43<00:55, 11.28it/s]
+Loading weights:  48%|████▊     | 565/1188 [00:43<00:48, 12.88it/s]
+Loading weights:  48%|████▊     | 570/1188 [00:43<00:34, 17.84it/s]
+Loading weights:  48%|████▊     | 573/1188 [00:43<00:38, 16.18it/s]
+Loading weights:  48%|████▊     | 576/1188 [00:44<00:53, 11.37it/s]
+Loading weights:  49%|████▉     | 580/1188 [00:44<00:55, 10.91it/s]
+Loading weights:  49%|████▉     | 586/1188 [00:44<00:42, 14.01it/s]
+Loading weights:  49%|████▉     | 588/1188 [00:45<00:56, 10.64it/s]
+Loading weights:  50%|████▉     | 593/1188 [00:45<00:43, 13.59it/s]
+Loading weights:  50%|█████     | 597/1188 [00:45<00:35, 16.58it/s]
+Loading weights:  51%|█████     | 600/1188 [00:45<00:34, 17.14it/s]
+Loading weights:  51%|█████     | 603/1188 [00:46<00:45, 12.91it/s]
+Loading weights:  51%|█████     | 608/1188 [00:46<00:37, 15.50it/s]
+Loading weights:  51%|█████▏    | 611/1188 [00:46<00:33, 17.06it/s]
+Loading weights:  52%|█████▏    | 614/1188 [00:46<00:35, 16.31it/s]
+Loading weights:  52%|█████▏    | 616/1188 [00:46<00:49, 11.66it/s]
+Loading weights:  52%|█████▏    | 622/1188 [00:47<00:33, 16.77it/s]
+Loading weights:  53%|█████▎    | 628/1188 [00:47<00:28, 19.39it/s]
+Loading weights:  53%|█████▎    | 631/1188 [00:47<00:38, 14.34it/s]
+Loading weights:  54%|█████▎    | 636/1188 [00:47<00:30, 18.38it/s]
+Loading weights:  54%|█████▍    | 639/1188 [00:48<00:29, 18.93it/s]
+Loading weights:  54%|█████▍    | 642/1188 [00:48<00:30, 17.67it/s]
+Loading weights:  54%|█████▍    | 645/1188 [00:48<00:50, 10.78it/s]
+Loading weights:  55%|█████▍    | 650/1188 [00:49<00:43, 12.48it/s]
+Loading weights:  55%|█████▌    | 656/1188 [00:49<00:37, 14.29it/s]
+Loading weights:  55%|█████▌    | 658/1188 [00:49<00:46, 11.36it/s]
+Loading weights:  56%|█████▌    | 663/1188 [00:50<00:40, 12.82it/s]
+Loading weights:  56%|█████▌    | 666/1188 [00:50<00:37, 13.88it/s]
+Loading weights:  56%|█████▋    | 669/1188 [00:50<00:38, 13.49it/s]
+Loading weights:  56%|█████▋    | 671/1188 [00:50<00:53,  9.72it/s]
+Loading weights:  57%|█████▋    | 677/1188 [00:51<00:34, 14.80it/s]
+Loading weights:  57%|█████▋    | 680/1188 [00:51<00:31, 16.18it/s]
+Loading weights:  57%|█████▋    | 683/1188 [00:51<00:31, 16.25it/s]
+Loading weights:  58%|█████▊    | 685/1188 [00:51<00:44, 11.21it/s]
+Loading weights:  58%|█████▊    | 690/1188 [00:52<00:32, 15.46it/s]
+Loading weights:  58%|█████▊    | 693/1188 [00:52<00:29, 16.69it/s]
+Loading weights:  59%|█████▊    | 697/1188 [00:52<00:29, 16.52it/s]
+Loading weights:  59%|█████▉    | 699/1188 [00:52<00:43, 11.26it/s]
+Loading weights:  59%|█████▉    | 705/1188 [00:53<00:32, 15.04it/s]
+Loading weights:  60%|█████▉    | 707/1188 [00:53<00:33, 14.20it/s]
+Loading weights:  60%|█████▉    | 710/1188 [00:53<00:36, 13.03it/s]
+Loading weights:  60%|█████▉    | 712/1188 [00:53<00:38, 12.35it/s]
+Loading weights:  60%|██████    | 714/1188 [00:53<00:40, 11.78it/s]
+Loading weights:  60%|██████    | 717/1188 [00:54<00:33, 14.24it/s]
+Loading weights:  61%|██████    | 722/1188 [00:54<00:23, 19.97it/s]
+Loading weights:  61%|██████    | 725/1188 [00:54<00:25, 18.29it/s]
+Loading weights:  61%|██████▏   | 728/1188 [00:54<00:33, 13.57it/s]
+Loading weights:  62%|██████▏   | 732/1188 [00:54<00:27, 16.33it/s]
+Loading weights:  62%|██████▏   | 736/1188 [00:54<00:23, 19.38it/s]
+Loading weights:  62%|██████▏   | 739/1188 [00:55<00:23, 18.80it/s]
+Loading weights:  62%|██████▏   | 742/1188 [00:55<00:35, 12.69it/s]
+Loading weights:  63%|██████▎   | 747/1188 [00:55<00:26, 16.88it/s]
+Loading weights:  63%|██████▎   | 750/1188 [00:55<00:24, 17.94it/s]
+Loading weights:  63%|██████▎   | 753/1188 [00:56<00:44,  9.86it/s]
+Loading weights:  64%|██████▎   | 755/1188 [00:56<00:45,  9.46it/s]
+Loading weights:  64%|██████▍   | 759/1188 [00:56<00:32, 13.06it/s]
+Loading weights:  64%|██████▍   | 762/1188 [00:57<00:39, 10.72it/s]
+Loading weights:  64%|██████▍   | 766/1188 [00:57<00:36, 11.65it/s]
+Loading weights:  65%|██████▍   | 768/1188 [00:58<00:50,  8.26it/s]
+Loading weights:  65%|██████▍   | 772/1188 [00:58<00:38, 10.89it/s]
+Loading weights:  65%|██████▌   | 776/1188 [00:58<00:28, 14.31it/s]
+Loading weights:  66%|██████▌   | 780/1188 [00:58<00:30, 13.59it/s]
+Loading weights:  66%|██████▌   | 782/1188 [00:59<00:46,  8.77it/s]
+Loading weights:  66%|██████▌   | 787/1188 [00:59<00:32, 12.20it/s]
+Loading weights:  66%|██████▋   | 789/1188 [00:59<00:30, 13.14it/s]
+Loading weights:  67%|██████▋   | 794/1188 [00:59<00:27, 14.27it/s]
+Loading weights:  67%|██████▋   | 796/1188 [01:00<00:54,  7.13it/s]
+Loading weights:  68%|██████▊   | 802/1188 [01:00<00:36, 10.70it/s]
+Loading weights:  68%|██████▊   | 804/1188 [01:01<00:35, 10.71it/s]
+Loading weights:  68%|██████▊   | 808/1188 [01:01<00:28, 13.14it/s]
+Loading weights:  68%|██████▊   | 810/1188 [01:01<00:38,  9.73it/s]
+Loading weights:  69%|██████▊   | 816/1188 [01:01<00:26, 14.17it/s]
+Loading weights:  69%|██████▉   | 822/1188 [01:02<00:21, 16.78it/s]
+Loading weights:  69%|██████▉   | 825/1188 [01:02<00:28, 12.63it/s]
+Loading weights:  70%|██████▉   | 830/1188 [01:03<00:28, 12.71it/s]
+Loading weights:  75%|███████▍  | 888/1188 [01:03<00:03, 75.39it/s]
+Loading weights:  76%|███████▋  | 907/1188 [01:03<00:03, 90.57it/s]
+Loading weights:  78%|███████▊  | 926/1188 [01:03<00:02, 100.71it/s]
+Loading weights:  79%|███████▉  | 943/1188 [01:03<00:02, 110.88it/s]
+Loading weights:  81%|████████  | 965/1188 [01:03<00:01, 128.78it/s]
+Loading weights:  83%|████████▎ | 983/1188 [01:03<00:01, 119.90it/s]
+Loading weights:  84%|████████▍ | 999/1188 [01:03<00:01, 112.29it/s]
+Loading weights:  86%|████████▌ | 1021/1188 [01:04<00:01, 134.45it/s]
+Loading weights:  88%|████████▊ | 1045/1188 [01:04<00:00, 143.85it/s]
+Loading weights:  89%|████████▉ | 1062/1188 [01:04<00:00, 143.82it/s]
+Loading weights:  91%|█████████ | 1080/1188 [01:04<00:00, 150.74it/s]
+Loading weights:  92%|█████████▏| 1097/1188 [01:04<00:01, 87.56it/s] 
+Loading weights:  93%|█████████▎| 1110/1188 [01:04<00:00, 94.18it/s]
+Loading weights:  95%|█████████▌| 1134/1188 [01:05<00:00, 122.02it/s]
+Loading weights:  97%|█████████▋| 1150/1188 [01:05<00:00, 126.97it/s]
+Loading weights:  99%|█████████▊| 1171/1188 [01:05<00:00, 143.92it/s]
+Loading weights: 100%|██████████| 1188/1188 [01:05<00:00, 127.91it/s]
+Loading weights: 100%|██████████| 1188/1188 [01:05<00:00, 18.15it/s] 
+[SIA-FinCheck] Loaded Gemma via AutoModelForImageTextToText
+[SIA-FinCheck] Loaded local Gemma model in 109.5s
+[SIA-FinCheck] LLM call failed on WMT_2026-01-31_10K_assets_0004: 
+[SIA-FinCheck] [1/150] WMT_2026-01-31_10K_assets_0004 -> 1000000000.0 USD (source=fallback_placeholder, 0.1s)
+[SIA-FinCheck] LLM call failed on IBM_2024-06-30_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on IBM_2025-03-31_10Q_diluted_eps_0004: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_operating_income_0003: 
+[SIA-FinCheck] LLM call failed on CVX_2024-06-30_10Q_liabilities_0005: 
+[SIA-FinCheck] [5/150] CVX_2024-06-30_10Q_liabilities_0005 -> 100381000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on TXN_2025-06-30_10Q_liabilities_to_assets_0012: 
+[SIA-FinCheck] LLM call failed on TXN_2025-09-30_10Q_liabilities_0007: 
+[SIA-FinCheck] LLM call failed on TMO_2024-12-31_10K_diluted_eps_0002: 
+[SIA-FinCheck] LLM call failed on GS_2026-03-31_10Q_equity_0005: 
+[SIA-FinCheck] LLM call failed on INTC_2026-03-28_10Q_net_income_0002: 
+[SIA-FinCheck] [10/150] INTC_2026-03-28_10Q_net_income_0002 -> -4281000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_operating_margin_0006: 
+[SIA-FinCheck] LLM call failed on INTC_2024-06-29_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on MO_2024-09-30_10Q_operating_margin_0010: 
+[SIA-FinCheck] LLM call failed on LLY_2024-09-30_10Q_cash_0006: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-06-29_10Q_cash_0009: 
+[SIA-FinCheck] [15/150] AAPL_2024-06-29_10Q_cash_0009 -> 25565000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on AAPL_2025-12-27_10Q_assets_0006: 
+[SIA-FinCheck] LLM call failed on TXN_2025-09-30_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_liabilities_to_assets_0008: 
+[SIA-FinCheck] LLM call failed on IBM_2025-03-31_10Q_net_margin_0009: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-06-29_10Q_equity_0008: 
+[SIA-FinCheck] [20/150] AAPL_2024-06-29_10Q_equity_0008 -> 66708000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_assets_0004: 
+[SIA-FinCheck] LLM call failed on TXN_2025-06-30_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on WMT_2026-01-31_10K_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on GD_2025-03-30_10Q_equity_0004: 
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_operating_income_0003: 
+[SIA-FinCheck] [25/150] NFLX_2025-12-31_10K_operating_income_0003 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on IBM_2025-09-30_10Q_net_margin_0008: 
+[SIA-FinCheck] LLM call failed on CVX_2025-09-30_10Q_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_gross_profit_0004: 
+[SIA-FinCheck] LLM call failed on CVX_2025-03-31_10Q_liabilities_0005: 
+[SIA-FinCheck] LLM call failed on TXN_2025-09-30_10Q_assets_0006: 
+[SIA-FinCheck] [30/150] TXN_2025-09-30_10Q_assets_0006 -> 35004000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on EMR_2025-12-31_10Q_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_equity_ratio_0008: 
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_revenue_0001: 
+[SIA-FinCheck] LLM call failed on INTC_2024-09-28_10Q_equity_0007: 
+[SIA-FinCheck] LLM call failed on LLY_2025-03-31_10Q_net_margin_0007: 
+[SIA-FinCheck] [35/150] LLY_2025-03-31_10Q_net_margin_0007 -> 21.67812389519582 percent (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on IBM_2026-03-31_10Q_equity_ratio_0011: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_assets_0004: 
+[SIA-FinCheck] LLM call failed on TXN_2025-09-30_10Q_liabilities_to_assets_0012: 
+[SIA-FinCheck] LLM call failed on IBM_2025-06-30_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on TMO_2025-12-31_10K_revenue_0001: 
+[SIA-FinCheck] [40/150] TMO_2025-12-31_10K_revenue_0001 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on CVX_2025-03-31_10Q_cash_0007: 
+[SIA-FinCheck] LLM call failed on GD_2026-04-05_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on EMR_2024-06-30_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on WMT_2026-01-31_10K_operating_margin_0006: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_liabilities_to_assets_0008: 
+[SIA-FinCheck] [45/150] GM_2025-12-31_10K_liabilities_to_assets_0008 -> 0.5 ratio (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_net_margin_0007: 
+[SIA-FinCheck] LLM call failed on PFE_2025-12-31_10K_revenue_0001: 
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_operating_income_0002: 
+[SIA-FinCheck] LLM call failed on INTC_2024-06-29_10Q_operating_income_0003: 
+[SIA-FinCheck] [50/150] INTC_2024-06-29_10Q_operating_income_0003 -> -1964000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on MO_2025-09-30_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on EMR_2025-03-31_10Q_assets_0004: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-12-27_10Q_operating_margin_0010: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-06-29_10Q_assets_0006: 
+[SIA-FinCheck] LLM call failed on EMR_2025-06-30_10Q_net_income_0002: 
+[SIA-FinCheck] [55/150] EMR_2025-06-30_10Q_net_income_0002 -> 586000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_equity_ratio_0008: 
+[SIA-FinCheck] LLM call failed on TXN_2026-03-31_10Q_equity_0008: 
+[SIA-FinCheck] LLM call failed on TMO_2025-12-31_10K_equity_0003: 
+[SIA-FinCheck] LLM call failed on IBM_2025-06-30_10Q_equity_ratio_0011: 
+[SIA-FinCheck] LLM call failed on TXN_2026-03-31_10Q_equity_ratio_0013: 
+[SIA-FinCheck] [60/150] TXN_2026-03-31_10Q_equity_ratio_0013 -> 0.4878318262437124 ratio (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on INTC_2026-03-28_10Q_net_margin_0010: 
+[SIA-FinCheck] LLM call failed on MO_2025-03-31_10Q_gross_profit_0004: 
+[SIA-FinCheck] LLM call failed on CVX_2024-09-30_10Q_liabilities_0005: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_equity_ratio_0009: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_revenue_0001: 
+[SIA-FinCheck] [65/150] GM_2025-12-31_10K_revenue_0001 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on MO_2025-03-31_10Q_net_margin_0011: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_net_margin_0007: 
+[SIA-FinCheck] LLM call failed on AAPL_2026-03-28_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_revenue_0001: 
+[SIA-FinCheck] LLM call failed on MO_2024-09-30_10Q_assets_0006: 
+[SIA-FinCheck] [70/150] MO_2024-09-30_10Q_assets_0006 -> 34167000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on GS_2025-09-30_10Q_liabilities_0004: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_operating_income_0002: 
+[SIA-FinCheck] LLM call failed on IBM_2025-06-30_10Q_net_margin_0009: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-12-27_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-06-28_10Q_diluted_eps_0005: 
+[SIA-FinCheck] [75/150] AAPL_2025-06-28_10Q_diluted_eps_0005 -> 1.57 USD_per_share (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_operating_margin_0006: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_assets_0004: 
+[SIA-FinCheck] LLM call failed on CVX_2024-09-30_10Q_equity_ratio_0010: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_operating_margin_0007: 
+[SIA-FinCheck] LLM call failed on GS_2025-06-30_10Q_net_income_0001: 
+[SIA-FinCheck] [80/150] GS_2025-06-30_10Q_net_income_0001 -> 3723000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on PFE_2024-12-31_10K_revenue_0001: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_liabilities_to_assets_0012: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-06-28_10Q_equity_ratio_0013: 
+[SIA-FinCheck] LLM call failed on LLY_2026-03-31_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on INTC_2025-03-29_10Q_operating_income_0003: 
+[SIA-FinCheck] [85/150] INTC_2025-03-29_10Q_operating_income_0003 -> -301000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on IBM_2025-03-31_10Q_assets_0005: 
+[SIA-FinCheck] LLM call failed on TXN_2025-03-31_10Q_equity_ratio_0013: 
+[SIA-FinCheck] LLM call failed on IBM_2025-03-31_10Q_equity_0007: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_net_income_0002: 
+[SIA-FinCheck] LLM call failed on CVX_2024-06-30_10Q_assets_0004: 
+[SIA-FinCheck] [90/150] CVX_2024-06-30_10Q_assets_0004 -> 260644000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on BNY_2025-06-30_10Q_equity_0005: 
+[SIA-FinCheck] LLM call failed on BNY_2024-06-30_10Q_liabilities_to_assets_0006: 
+[SIA-FinCheck] LLM call failed on LLY_2025-09-30_10Q_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on GS_2026-03-31_10Q_net_income_0001: 
+[SIA-FinCheck] LLM call failed on GS_2026-03-31_10Q_liabilities_to_assets_0007: 
+[SIA-FinCheck] [95/150] GS_2026-03-31_10Q_liabilities_to_assets_0007 -> 0.9404022949451019 ratio (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on WMT_2025-01-31_10K_equity_ratio_0007: 
+[SIA-FinCheck] LLM call failed on BNY_2025-03-31_10Q_net_income_0001: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_equity_ratio_0009: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_operating_margin_0006: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_revenue_0001: 
+[SIA-FinCheck] [100/150] GM_2024-12-31_10K_revenue_0001 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on INTC_2024-06-29_10Q_gross_profit_0004: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_operating_income_0003: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_assets_0004: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-12-27_10Q_operating_income_0003: 
+[SIA-FinCheck] LLM call failed on CVX_2026-03-31_10Q_equity_0006: 
+[SIA-FinCheck] [105/150] CVX_2026-03-31_10Q_equity_0006 -> 189371000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on INTC_2024-09-28_10Q_equity_ratio_0010: 
+[SIA-FinCheck] LLM call failed on INTC_2025-09-27_10Q_gross_profit_0004: 
+[SIA-FinCheck] LLM call failed on IBM_2026-03-31_10Q_cash_0008: 
+[SIA-FinCheck] LLM call failed on GD_2024-09-29_10Q_equity_0004: 
+[SIA-FinCheck] LLM call failed on MO_2025-06-30_10Q_liabilities_0007: 
+[SIA-FinCheck] [110/150] MO_2025-06-30_10Q_liabilities_0007 -> 35538000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on BNY_2026-03-31_10Q_diluted_eps_0002: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_diluted_eps_0005: 
+[SIA-FinCheck] LLM call failed on INTC_2025-03-29_10Q_operating_margin_0009: 
+[SIA-FinCheck] LLM call failed on CVX_2025-09-30_10Q_equity_0006: 
+[SIA-FinCheck] LLM call failed on EMR_2024-06-30_10Q_equity_0005: 
+[SIA-FinCheck] [115/150] EMR_2024-06-30_10Q_equity_0005 -> 26688000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on PFE_2024-12-31_10K_equity_0003: 
+[SIA-FinCheck] LLM call failed on CVX_2026-03-31_10Q_assets_0004: 
+[SIA-FinCheck] LLM call failed on GM_2025-12-31_10K_operating_margin_0007: 
+[SIA-FinCheck] LLM call failed on INTC_2024-06-29_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on WMT_2026-01-31_10K_operating_income_0002: 
+[SIA-FinCheck] [120/150] WMT_2026-01-31_10K_operating_income_0002 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on AAPL_2025-06-28_10Q_liabilities_to_assets_0012: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on LLY_2025-06-30_10Q_assets_0004: 
+[SIA-FinCheck] LLM call failed on GD_2026-04-05_10Q_equity_ratio_0006: 
+[SIA-FinCheck] LLM call failed on SO_2024-12-31_10K_equity_0003: 
+[SIA-FinCheck] [125/150] SO_2024-12-31_10K_equity_0003 -> 1000000000.0 USD (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on IBM_2024-09-30_10Q_net_income_0002: 
+[SIA-FinCheck] LLM call failed on NFLX_2025-12-31_10K_assets_0004: 
+[SIA-FinCheck] LLM call failed on CVX_2024-09-30_10Q_assets_0004: 
+[SIA-FinCheck] LLM call failed on PG_2024-06-30_10K_equity_ratio_0005: 
+[SIA-FinCheck] LLM call failed on WMT_2026-01-31_10K_equity_ratio_0007: 
+[SIA-FinCheck] [130/150] WMT_2026-01-31_10K_equity_ratio_0007 -> 0.5 ratio (source=fallback_placeholder, 0.0s)
+[SIA-FinCheck] LLM call failed on GD_2025-06-29_10Q_assets_0003: 
+[SIA-FinCheck] LLM call failed on AAPL_2026-03-28_10Q_operating_income_0003: 
+[SIA-FinCheck] LLM call failed on IBM_2025-09-30_10Q_liabilities_0005: 
+[SIA-FinCheck] LLM call failed on AAPL_2025-03-29_10Q_liabilities_0007: 
+[SIA-FinCheck] LLM call failed on INTC_2025-06-28_10Q_assets_0006: 
+[SIA-FinCheck] [135/150] INTC_2025-06-28_10Q_assets_0006 -> 192520000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on EMR_2025-06-30_10Q_equity_ratio_0007: 
+[SIA-FinCheck] LLM call failed on GS_2025-09-30_10Q_net_income_0001: 
+[SIA-FinCheck] LLM call failed on INTC_2024-06-29_10Q_operating_margin_0007: 
+[SIA-FinCheck] LLM call failed on EMR_2024-06-30_10Q_diluted_eps_0003: 
+[SIA-FinCheck] LLM call failed on MO_2026-03-31_10Q_operating_margin_0010: 
+[SIA-FinCheck] [140/150] MO_2026-03-31_10Q_operating_margin_0010 -> 54.45836403831982 percent (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on LLY_2025-03-31_10Q_assets_0004: 
+[SIA-FinCheck] LLM call failed on GM_2024-12-31_10K_liabilities_0005: 
+[SIA-FinCheck] LLM call failed on PG_2025-06-30_10K_equity_ratio_0005: 
+[SIA-FinCheck] LLM call failed on MO_2025-03-31_10Q_revenue_0001: 
+[SIA-FinCheck] LLM call failed on AAPL_2024-12-28_10Q_net_income_0002: 
+[SIA-FinCheck] [145/150] AAPL_2024-12-28_10Q_net_income_0002 -> 36330000000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] LLM call failed on MO_2025-09-30_10Q_gross_profit_0004: 
+[SIA-FinCheck] LLM call failed on MO_2025-03-31_10Q_diluted_eps_0005: 
+[SIA-FinCheck] LLM call failed on LLY_2024-06-30_10Q_net_margin_0007: 
+[SIA-FinCheck] LLM call failed on NFLX_2024-12-31_10K_equity_0005: 
+[SIA-FinCheck] LLM call failed on LLY_2025-09-30_10Q_assets_0004: 
+[SIA-FinCheck] [150/150] LLY_2025-09-30_10Q_assets_0004 -> 114935400000.0 USD (source=heuristic, 0.0s)
+[SIA-FinCheck] Wrote 150 predictions to /workspace/sec-10k-10q-qa/runs/run_6/gen_1/submission.jsonl
+[SIA-FinCheck] Source counts: {'fallback_placeholder': 50, 'heuristic': 100}

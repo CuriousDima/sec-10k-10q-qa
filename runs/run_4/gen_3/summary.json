@@ -1,0 +1,22 @@
+{
+  "model": "fugu-mini",
+  "base_url": "https://api.sakana.ai/v1",
+  "dataset_dir": "/workspace/sec-10k-10q-qa/tasks/sia-fincheck/data/public",
+  "working_dir": "/workspace/sec-10k-10q-qa/runs/run_4/gen_3",
+  "submission_path": "/workspace/sec-10k-10q-qa/runs/run_4/gen_3/submission.jsonl",
+  "n_examples": 150,
+  "n_predictions": 150,
+  "client_available": true,
+  "runtime_seconds": 95.86,
+  "ok_predictions": 150,
+  "failed_predictions": 0,
+  "augmentation_used": 44,
+  "knowledge_fallback_used": 5,
+  "ratio_components_used": 25,
+  "magnitude_retry_used": 0,
+  "total_attempts": 156,
+  "total_prompt_tokens": 1420898,
+  "total_completion_tokens": 26535,
+  "total_tokens": 1447433,
+  "cost": 0
+}
